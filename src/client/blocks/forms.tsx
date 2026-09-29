@@ -24,7 +24,7 @@ export function RadioNode({ node, onAction, answers }: {
   // pre-checked first option silently swallows the user's "keep the default"
   // answer (the registry only records real change events). A DURABLE answer
   // (restored from localStorage) wins over both. The parent key includes the
-  // reset round, so 重新作答 remounts this radio with a clean selection —
+  // reset round, so Start over remounts this radio with a clean selection —
   // no sync effect needed.
   const restoredIndex = group !== undefined && answers?.answers[group] !== undefined
     ? options.indexOf(answers!.answers[group]!)

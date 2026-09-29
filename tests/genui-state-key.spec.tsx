@@ -8,7 +8,7 @@ import { repairGenuiSpec } from '../src/client/guard.ts'
 import { fenceStateKey, loadBlockState, saveBlockState } from '../src/client/interaction-store.ts'
 
 const fieldSpec = repairGenuiSpec({
-  items: [{ type: 'input', id: 'name', label: '姓名' }],
+  items: [{ type: 'input', id: 'name', label: 'Name' }],
 })!
 
 beforeEach(() => {
@@ -23,7 +23,7 @@ afterEach(() => {
 })
 
 function fieldValue(): string {
-  return (screen.getByRole('textbox', { name: '姓名' }) as HTMLInputElement).value
+  return (screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value
 }
 
 describe('GenUI durable state identity', () => {
@@ -47,19 +47,19 @@ describe('GenUI durable state identity', () => {
 
   it('keeps one volatile instance while an identity-less streaming spec grows', () => {
     const first = repairGenuiSpec({
-      title: '第一段',
-      items: [{ type: 'input', id: 'name', label: '姓名' }],
+      title: 'Part one',
+      items: [{ type: 'input', id: 'name', label: 'Name' }],
     })!
     const second = repairGenuiSpec({
-      title: '第二段',
+      title: 'Part two',
       items: [
-        { type: 'input', id: 'name', label: '姓名' },
-        { type: 'text', content: '后续流式内容' },
+        { type: 'input', id: 'name', label: 'Name' },
+        { type: 'text', content: 'Later streamed content' },
       ],
     })!
 
     const view = render(<GenuiBlock spec={first} />)
-    fireEvent.change(screen.getByRole('textbox', { name: '姓名' }), { target: { value: 'typing' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'typing' } })
     expect(fieldValue()).toBe('typing')
 
     view.rerender(<GenuiBlock spec={second} />)
@@ -68,7 +68,7 @@ describe('GenUI durable state identity', () => {
 
   it.each([renderGenuiFence, renderResolvedFenceNode])('keeps input and pending actions when a streaming fence settles (%#)', renderFence => {
     const spec = repairGenuiSpec({ items: [
-      ...fieldSpec.items, { type: 'button', label: '确认', action: 'confirm' },
+      ...fieldSpec.items, { type: 'button', label: 'Confirm', action: 'confirm' },
     ] })!
     const raw = JSON.stringify(spec)
     const onAction = vi.fn()
@@ -76,13 +76,13 @@ describe('GenUI durable state identity', () => {
     const view = render(<GenuiActionContext.Provider value={onAction}>
       {renderFence(raw, 0, { sessionId: 'stream-session' })}
     </GenuiActionContext.Provider>)
-    const input = screen.getByRole('textbox', { name: '姓名' })
+    const input = screen.getByRole('textbox', { name: 'Name' })
     fireEvent.change(input, { target: { value: 'typing' } })
-    fireEvent.click(screen.getByRole('button', { name: '确认' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     view.rerender(<GenuiActionContext.Provider value={onAction}>
       {renderFence(raw, 0, { sessionId: 'stream-session', source })}
     </GenuiActionContext.Provider>)
-    expect(screen.getByRole('textbox', { name: '姓名' })).toBe(input)
+    expect(screen.getByRole('textbox', { name: 'Name' })).toBe(input)
     expect(fieldValue()).toBe('typing')
     act(() => { vi.advanceTimersByTime(300) })
     expect(onAction).toHaveBeenCalledTimes(1)

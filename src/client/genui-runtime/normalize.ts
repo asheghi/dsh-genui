@@ -188,7 +188,7 @@ function normalizeNode(value: unknown, path: string, warnings: GenuiDiagnostic[]
     if (type !== 'file-tree' && type !== 'timeline' && type !== 'breadcrumb') out.items = normalizeNodeArray(out.items, `${path}.items`)
   } else if (type === 'list' && Array.isArray(out.items)) {
     // List items are a union (string | {title,desc} | nested node), and models
-    // routinely dump 1×N / N×1 table cells in place of the item: `[["文本"]]`
+    // routinely dump 1×N / N×1 table cells in place of the item: `[["text"]]`
     // renders as an EMPTY list and `{title, description}` loses its body
     // (repair reads `desc`). Both are pure shape defects — normalize them here
     // so validation, diagnostics, and repair all see the canonical item.

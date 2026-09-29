@@ -27,16 +27,16 @@ describe('gallery spec', () => {
     render(<MarkdownText text={fenced(gallerySpec)} />)
     const body = document.body.textContent ?? ''
     // Layout + text hierarchy
-    expect(body).toContain('排版层级')
-    expect(body).toContain('正文')
+    expect(body).toContain('Typography scale')
+    expect(body).toContain('Body: rendered through the component whitelist')
     // Display
-    expect(body).toContain('成功')
+    expect(body).toContain('Success')
     expect(body).toContain('CPU')
-    expect(body).toContain('训练进度')
+    expect(body).toContain('Training progress')
     expect(document.querySelector('audio[controls][preload="none"]')).not.toBeNull()
-    expect(body).toContain('性能指标')
-    expect(body).toContain('版本')
-    expect(body).toContain('标题项')
+    expect(body).toContain('Performance metrics')
+    expect(body).toContain('Version')
+    expect(body).toContain('Titled item')
     // Avatars render their initial: the two avatars sit adjacent in a row.
     expect(body).toContain('AB')
     expect(screenCount('tab', 'label')).toBeLessThanOrEqual(GENUI_LIMITS.maxTabs)
@@ -48,7 +48,7 @@ describe('gallery spec', () => {
     expect(document.querySelector('select')).not.toBeNull()
     expect(screenAllByRole('switch').length).toBeGreaterThan(0)
     expect(document.querySelector('input[type="radio"]')).not.toBeNull()
-    expect(body).toContain('复制令牌')
+    expect(body).toContain('Copy token')
     expect(document.querySelector('img[src="/demo-image.png"]')).not.toBeNull()
     expect(document.querySelector('audio[controls][preload="metadata"]')).not.toBeNull()
     expect(document.querySelector('video[controls][preload="metadata"]')).not.toBeNull()

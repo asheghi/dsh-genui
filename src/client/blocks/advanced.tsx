@@ -90,13 +90,13 @@ export const PlotNode = memo(function PlotNode({ plot }: { plot: GenuiPlot }) {
   )
 })
 
-/** Diff: 收编 dsh DiffBlock (same path/oldText/newText shape as DiffHunk). */
+/** Diff: adopts dsh DiffBlock (same path/oldText/newText shape as DiffHunk). */
 export const DiffNode = memo(function DiffNode({ node }: { node: GenuiDiff }) {
   useT()
   return <DiffBlock diffs={node.diffs} labels={diffBlockLabels()} />
 })
 
-/** Json: 收编 dsh JsonTree. */
+/** Json: adopts dsh JsonTree. */
 export const JsonNode = memo(function JsonNode({ node }: { node: GenuiJson }) {
   useT()
   const data = node.value
@@ -106,7 +106,7 @@ export const JsonNode = memo(function JsonNode({ node }: { node: GenuiJson }) {
   return <JsonTree data={data as object | unknown[]} label="JSON" labels={jsonTreeLabels()} copyable />
 })
 
-/** Code: 收编 dsh CodeBlock with explicit language. */
+/** Code: adopts dsh CodeBlock with explicit language. */
 export const CodeNode = memo(function CodeNode({ node }: { node: GenuiCode }) {
   useT()
   return <CodeBlock {...codeBlockLabels()} code={node.code.slice(0, GENUI_LIMITS.maxCode)} lang={node.lang} />
@@ -184,7 +184,7 @@ export function TabsNode({ tabs, onAction, depth = 0, answers }: {
  * sibling `submit` node then grades the paper IN PLACE (v2.6, questions
  * carry `answer` data) or collects all groups in ONE action. Without
  * `group`, the legacy per-click action fires. After a local grading the
- * group locks until 重新作答 resets it. */
+ * group locks until Start over resets it. */
 export function AccordionNode({ node, onAction, depth = 0, answers }: {
   node: GenuiAccordion
   onAction?: GenuiBlockProps['onAction']

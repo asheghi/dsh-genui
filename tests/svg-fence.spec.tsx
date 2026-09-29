@@ -2,17 +2,17 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { renderSvgFence } from '../src/client/svg-fence.tsx'
 
-const raw = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"><text x="2" y="20">模块图</text></svg>'
+const raw = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"><text x="2" y="20">module diagram</text></svg>'
 afterEach(cleanup)
 
 describe('SVG fence', () => {
   it('switches between an isolated preview and copyable source', () => {
     const { getByRole, container } = render(<>{renderSvgFence(raw, 'svg')}</>)
     expect(getByRole('img')).not.toBeNull()
-    fireEvent.click(getByRole('button', { name: '源码', exact: true }))
+    fireEvent.click(getByRole('button', { name: 'Source', exact: true }))
     expect(container.querySelector('pre')?.textContent).toContain(raw)
-    expect(getByRole('button', { name: '复制', exact: true })).not.toBeNull()
-    fireEvent.click(getByRole('button', { name: '预览', exact: true }))
+    expect(getByRole('button', { name: 'Copy', exact: true })).not.toBeNull()
+    fireEvent.click(getByRole('button', { name: 'Preview', exact: true }))
     expect(getByRole('img')).not.toBeNull()
   })
 
@@ -29,7 +29,7 @@ describe('SVG fence', () => {
     const { getByRole, container } = render(<>{renderSvgFence('<svg><broken>', 'bad')}</>)
     expect(getByRole('status').textContent).toContain('SVG')
     expect(container.querySelector('pre')?.textContent).toBe('<svg><broken>')
-    fireEvent.click(getByRole('button', { name: '源码', exact: true }))
-    expect(getByRole('button', { name: '复制', exact: true })).not.toBeNull()
+    fireEvent.click(getByRole('button', { name: 'Source', exact: true }))
+    expect(getByRole('button', { name: 'Copy', exact: true })).not.toBeNull()
   })
 })

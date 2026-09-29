@@ -11,7 +11,7 @@ describe('GenUI image', () => {
       items: [{
         type: 'image',
         src: '/mmx-files/result.png',
-        alt: '生成结果',
+        alt: 'Generated result',
       }],
     })!
 
@@ -20,7 +20,7 @@ describe('GenUI image', () => {
 
     expect(image).not.toBeNull()
     expect(image?.getAttribute('src')).toBe('/mmx-files/result.png')
-    expect(image?.getAttribute('alt')).toBe('生成结果')
+    expect(image?.getAttribute('alt')).toBe('Generated result')
     expect(image?.getAttribute('loading')).toBe('lazy')
     expect(image?.getAttribute('decoding')).toBe('async')
   })
@@ -51,12 +51,12 @@ describe('GenUI image', () => {
 
   it('shows an honest fallback when the image cannot be loaded', () => {
     const spec = repairGenuiSpec({
-      items: [{ type: 'image', src: '/mmx-files/missing.png', alt: '预览' }],
+      items: [{ type: 'image', src: '/mmx-files/missing.png', alt: 'Preview' }],
     })!
 
     const { container, getByText } = render(<GenuiBlock spec={spec} />)
     fireEvent.error(container.querySelector('img')!)
 
-    expect(getByText('图片无法加载')).not.toBeNull()
+    expect(getByText('Image failed to load')).not.toBeNull()
   })
 })

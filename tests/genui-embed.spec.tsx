@@ -11,18 +11,18 @@ it('embeds the same renderer with native persistence, local assets and action re
   const save = vi.fn()
   const action = vi.fn()
   const spec: GenuiSpec = { items: [
-    { type: 'input', id: 'answer', label: '问题' },
-    { type: 'button', label: '继续', action: 'explain' },
+    { type: 'input', id: 'answer', label: 'Question' },
+    { type: 'button', label: 'Continue', action: 'explain' },
   ] }
   render(<GenuiActionContext.Provider value={action}>
-    <GenuiBlock spec={spec} stateKey="message-1" initialState={{ fields: { answer: '已保存' } }} onStateChange={save} />
+    <GenuiBlock spec={spec} stateKey="message-1" initialState={{ fields: { answer: 'Saved' } }} onStateChange={save} />
   </GenuiActionContext.Provider>)
   const input = screen.getByRole('textbox') as HTMLInputElement
-  expect(input.value).toBe('已保存')
-  fireEvent.change(input, { target: { value: '本次编辑' } })
-  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ fields: { answer: '本次编辑' } }))
+  expect(input.value).toBe('Saved')
+  fireEvent.change(input, { target: { value: 'This edit' } })
+  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ fields: { answer: 'This edit' } }))
   expect(localStorage.getItem('dsh.genui.interaction')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: '继续' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
   await vi.waitFor(() => expect(action).toHaveBeenCalledWith('explain', expect.any(Object)))
   setGenuiAssetBase('file:///Applications/WeiBei.app/Contents/Resources/GenUI/')
   expect(assetUrl('mermaid.js')).toBe('file:///Applications/WeiBei.app/Contents/Resources/GenUI/mermaid.js')

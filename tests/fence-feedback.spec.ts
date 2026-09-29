@@ -21,22 +21,22 @@ import {
 /** A fence body that renders: one stat carrying a metric list (#172 case A). */
 const STAT_GROUP = JSON.stringify({ items: [{
   type: 'stat',
-  items: [{ label: '质量门进度', value: '1/5' }, { label: '阻塞项', value: '0' }],
+  items: [{ label: 'Quality gate progress', value: '1/5' }, { label: 'Blocked items', value: '0' }],
 }] })
 
 /** A fence body that renders: bare data-component root (#172 case B). */
-const BARE_STEPS = JSON.stringify({ type: 'steps', items: [{ title: '第一层' }] })
+const BARE_STEPS = JSON.stringify({ type: 'steps', items: [{ title: 'First tier' }] })
 
 /** A fence body that cannot render: required field missing. */
 const BROKEN = JSON.stringify({ items: [{ type: 'stat' }] })
-const REPAIRABLE = '{"title":"x","items":[{"type":"text","content":"好",},]}'
-const REPAIRED_SCHEMA_FAILURE = '{"items":[{"type":"stat","value":"好",},]}'
+const REPAIRABLE = '{"title":"x","items":[{"type":"text","content":"ok",},]}'
+const REPAIRED_SCHEMA_FAILURE = '{"items":[{"type":"stat","value":"ok",},]}'
 const ISSUE_200 = '{"type":"keyvalue","items":[{"label":"a","value":"b"}]}'
-const CUT = '{"items":[{"type":"text","content":"补全"}'
-const TIER2_ONLY = '{"title":"x","items":[{"type":"text","content":"半截'
+const CUT = '{"items":[{"type":"text","content":"completed"}'
+const TIER2_ONLY = '{"title":"x","items":[{"type":"text","content":"half'
 
 function reply(...bodies: string[]): string {
-  return bodies.map(body => `说明文字\n\`\`\`dsh-ui\n${body}\n\`\`\`\n`).join('\n')
+  return bodies.map(body => `Prose text\n\`\`\`dsh-ui\n${body}\n\`\`\`\n`).join('\n')
 }
 
 interface Harness {
@@ -81,7 +81,7 @@ function harness(options: { parentSession?: string; enabled?: boolean } = {}): H
 }
 
 const assistantEvent = (text: string): unknown => ({ type: 'assistant/message', seq: 3, time: 1, data: { message: { content: [{ type: 'text', text }] } } }) as unknown as SessionEvent
-const userEvent = (): unknown => ({ type: 'user/message', seq: 2, time: 1, data: { content: [{ type: 'text', text: '问题' }], source: { kind: 'user' } } }) as unknown as SessionEvent
+const userEvent = (): unknown => ({ type: 'user/message', seq: 2, time: 1, data: { content: [{ type: 'text', text: 'Question' }], source: { kind: 'user' } } }) as unknown as SessionEvent
 
 describe('exact fence matching', () => {
   it('extracts only a fence whose info string is exactly dsh-ui', () => {
@@ -95,7 +95,7 @@ describe('exact fence matching', () => {
       '```json',
       '{"items":[]}',
       '```',
-      '正文里提到 dsh-ui 但不在围栏里',
+      'Prose mentions dsh-ui but is not inside a fence',
     ].join('\n')
     const fences = extractDshUiFences(text)
     expect(fences).toHaveLength(1)
@@ -109,7 +109,7 @@ describe('exact fence matching', () => {
   })
 
   it('marks an unterminated fence instead of swallowing it silently', () => {
-    const fences = extractDshUiFences('```dsh-ui\n{"items":[{"type":"text","content":"半截')
+    const fences = extractDshUiFences('```dsh-ui\n{"items":[{"type":"text","content":"half')
     expect(fences).toHaveLength(1)
     expect(fences[0]!.closed).toBe(false)
   })
@@ -154,7 +154,7 @@ describe('fenceFailures: only fences that would stay a code block', () => {
     const failures = fenceFailures(reply(REPAIRED_SCHEMA_FAILURE))
     expect(failures).toHaveLength(1)
     expect(failures[0]!.detail).toContain("type 'stat' requires label")
-    expect(failures[0]!.detail).not.toContain('不是合法 JSON')
+    expect(failures[0]!.detail).not.toContain('\u4e0d\u662f\u5408\u6cd5 JSON')
   })
 
   it('accepts a settled body repaired by tier-2 completion', () => {
@@ -167,7 +167,7 @@ describe('fenceFailures: only fences that would stay a code block', () => {
   })
 
   it('ignores JSON fences and prose', () => {
-    expect(fenceFailures('```json\n{"items":[{"type":"stat"}]}\n```\n正文 dsh-ui')).toEqual([])
+    expect(fenceFailures('```json\n{"items":[{"type":"stat"}]}\n```\nprose dsh-ui')).toEqual([])
   })
 })
 
@@ -222,8 +222,8 @@ describe('the steered correction message', () => {
     expect(text).toContain("type 'stat' requires label")
     expect(text).not.toContain('[genui-validation]')
     expect(text).not.toContain('next=fix_and_revalidate')
-    expect(text).not.toContain('围栏没有渲染成界面')
-    expect(text).not.toContain('请只重发修正后的')
+    expect(text).not.toContain('\u56f4\u680f\u6ca1\u6709\u6e32\u67d3\u6210\u754c\u9762')
+    expect(text).not.toContain('\u8bf7\u53ea\u91cd\u53d1\u4fee\u6b63\u540e\u7684')
     const message = createFeedbackMessage(text, 4)
     expect(message.role).toBe('user')
     expect(typeof message.id).toBe('string')
@@ -322,7 +322,7 @@ describe('installFenceFeedback wiring', () => {
       seq: 4,
       time: 1,
       data: {
-        content: [{ type: 'text', text: `[genui 自修 #${fingerprint}]\nlegacy repair notice` }],
+        content: [{ type: 'text', text: `[genui self-repair #${fingerprint}]\nlegacy repair notice` }],
         source: { kind: FEEDBACK_SOURCE_KIND, form: 'notice', summary: 'legacy' },
       },
     } as unknown as SessionEvent)
@@ -358,7 +358,7 @@ describe('installFenceFeedback wiring', () => {
   it('clears the latest reply when a plain assistant message replaces it', () => {
     const h = harness()
     h.emitSession(assistantEvent(reply(BROKEN)))
-    h.emitSession(assistantEvent('普通文本'))
+    h.emitSession(assistantEvent('Plain prose'))
     h.boundary({ agent: { session: { id: 'sess-1', header: { id: 'sess-1' } }, steer: h.steer }, turn: 1, signal: new AbortController().signal })
     expect(h.steer).not.toHaveBeenCalled()
   })

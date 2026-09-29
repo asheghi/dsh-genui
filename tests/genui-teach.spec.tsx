@@ -4,7 +4,8 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { hasFenceRegistry } from './helpers/fence-host'
 
-// jsdom 没有真正的 requestAnimationFrame 循环；用可控 mock 手动推进帧。
+// jsdom has no real requestAnimationFrame loop; advance frames manually
+// through a controllable mock.
 let rafCallbacks: Array<(t: number) => void> = []
 let rafTime = 0
 beforeEach(() => {
@@ -38,22 +39,22 @@ function fenced(spec: unknown): string {
 describe.skipIf(!hasFenceRegistry)('quiz component', () => {
   it('judges correct and wrong answers in place', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
-      { type: 'quiz', question: 'sin(0) 等于？', options: [
-        { label: '0', correct: true, feedback: '对，sin(0)=0' },
-        { label: '1', feedback: 'sin(0) 不是 1' },
-      ], explanation: '单位圆上 0 弧度的 y 坐标为 0' },
+      { type: 'quiz', question: 'What is sin(0)?', options: [
+        { label: '0', correct: true, feedback: 'Right, sin(0)=0' },
+        { label: '1', feedback: 'sin(0) is not 1' },
+      ], explanation: 'On the unit circle the y coordinate at 0 radians is 0' },
     ] })} />)
     expect(container.querySelector('[data-genui-quiz]')).not.toBeNull()
-    // 答错
+    // Wrong answer
     fireEvent.click(container.querySelectorAll('[data-genui-quiz] button')[1]!)
-    expect(container.textContent).toContain('再想想')
-    expect(container.textContent).toContain('sin(0) 不是 1')
-    // 重新作答
+    expect(container.textContent).toContain('Try again')
+    expect(container.textContent).toContain('sin(0) is not 1')
+    // Answer again
     fireEvent.click(container.querySelector('[class*="quizRetry"]')!)
-    // 答对
+    // Right answer
     fireEvent.click(container.querySelectorAll('[data-genui-quiz] button')[0]!)
-    expect(container.textContent).toContain('回答正确')
-    expect(container.textContent).toContain('单位圆上')
+    expect(container.textContent).toContain('Correct!')
+    expect(container.textContent).toContain('unit circle')
   })
 })
 
@@ -64,7 +65,7 @@ describe.skipIf(!hasFenceRegistry)('plot animation', () => {
     ] })} />)
     const play = container.querySelector('[class*="playBtn"]')
     expect(play).not.toBeNull()
-    expect(play!.textContent).toContain('播放')
+    expect(play!.textContent).toContain('Play animation')
   })
 
   it('animates the parameter over time', async () => {
@@ -72,13 +73,13 @@ describe.skipIf(!hasFenceRegistry)('plot animation', () => {
       { type: 'plot', series: [{ expr: 'a*sin(x)', params: [{ name: 'a', value: 1, min: 0, max: 5, animateTo: 3, durationMs: 200 }] }] },
     ] })} />)
     fireEvent.click(container.querySelector('[class*="playBtn"]')!)
-    // 播放中：推进几帧，参数值应偏离初始值
+    // Playing: advance a few frames; the parameter must move off its start value
     act(() => { tick(50); tick(50); tick(50) })
     const value = container.querySelector('[class*="sliderValue"]')?.textContent
     expect(value).not.toBe('1')
-    // 推进到结束（durationMs 200），回到停止状态
+    // Advance past the end (durationMs 200) and return to the stopped state
     act(() => { tick(200) })
-    expect(container.querySelector('[class*="playBtn"]')?.textContent).toContain('播放')
+    expect(container.querySelector('[class*="playBtn"]')?.textContent).toContain('Play animation')
   }, 5000)
 
   it('resets params to declared defaults', () => {
@@ -87,7 +88,7 @@ describe.skipIf(!hasFenceRegistry)('plot animation', () => {
     ] })} />)
     fireEvent.change(container.querySelector('input[type="range"]')!, { target: { value: '4' } })
     expect((container.querySelector('input[type="range"]') as HTMLInputElement).value).toBe('4')
-    const resetBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('重置'))
+    const resetBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('Reset'))
     expect(resetBtn).toBeTruthy()
     fireEvent.click(resetBtn!)
     expect((container.querySelector('input[type="range"]') as HTMLInputElement).value).toBe('1')

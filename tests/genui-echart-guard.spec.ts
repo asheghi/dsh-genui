@@ -10,11 +10,11 @@ const echart = (props: Record<string, unknown> = {}) => ({ type: 'echart', ...pr
 describe('repairGenuiSpec: echart preset whitelist', () => {
   it('preserves wordCloud in both preset and full option modes', () => {
     const spec = repairGenuiSpec({ items: [
-      echart({ preset: 'wordCloud', data: [{ label: '系统', value: 80 }] }),
-      echart({ option: { series: [{ type: 'wordCloud', data: [{ name: '系统', value: 80 }] }] } }),
+      echart({ preset: 'wordCloud', data: [{ label: '\u7cfb\u7edf', value: 80 }] }),
+      echart({ option: { series: [{ type: 'wordCloud', data: [{ name: '\u7cfb\u7edf', value: 80 }] }] } }),
     ] })!
-    expect(spec.items[0]).toMatchObject({ preset: 'wordCloud', data: [{ label: '系统', value: 80 }] })
-    expect(spec.items[1]).toMatchObject({ option: { series: [{ type: 'wordCloud', data: [{ name: '系统', value: 80 }] }] } })
+    expect(spec.items[0]).toMatchObject({ preset: 'wordCloud', data: [{ label: '\u7cfb\u7edf', value: 80 }] })
+    expect(spec.items[1]).toMatchObject({ option: { series: [{ type: 'wordCloud', data: [{ name: '\u7cfb\u7edf', value: 80 }] }] } })
   })
 
   it('accepts all five valid presets', () => {
@@ -144,14 +144,14 @@ describe('sanitizeEChartOption: XSS prevention (via repairGenuiSpec)', () => {
   it('preserves legitimate string values (CJK, templates, hex)', () => {
     const spec = repairGenuiSpec({ items: [echart({
       option: {
-        title: { text: '销售趋势' },
-        xAxis: { type: 'category', data: ['一月', '二月'] },
+        title: { text: '\u9500\u552e\u8d8b\u52bf' },
+        xAxis: { type: 'category', data: ['\u4e00\u6708', '\u4e8c\u6708'] },
         backgroundColor: '#1a1a1e',
       },
     })] })
     const node = spec?.items[0] as { option?: { title?: { text?: string }; xAxis?: { data?: string[] }; backgroundColor?: string } }
-    expect(node?.option?.title?.text).toBe('销售趋势')
-    expect(node?.option?.xAxis?.data).toEqual(['一月', '二月'])
+    expect(node?.option?.title?.text).toBe('\u9500\u552e\u8d8b\u52bf')
+    expect(node?.option?.xAxis?.data).toEqual(['\u4e00\u6708', '\u4e8c\u6708'])
     expect(node?.option?.backgroundColor).toBe('#1a1a1e')
   })
 

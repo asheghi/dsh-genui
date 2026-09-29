@@ -7,7 +7,7 @@ import { setLocale } from '../i18n/runtime.ts'
 import './katex-style.ts'
 import './bootstrap-types.ts'
 
-/** 挂载独立 artifact，并返回卸载该界面的函数。 */
+/** Mount the standalone artifact and return a function that unmounts the UI. */
 function mount(root: HTMLElement, rawArtifact: unknown): () => void {
   const artifact = parseGenuiArtifact(rawArtifact)
   if (artifact === null) throw new Error('invalid GenUI artifact')

@@ -1,68 +1,68 @@
-# DSH GenUI 设计优化方案
+# DSH GenUI Design Optimization Plan
 
-> 状态：设计稿（未实现、未合并、未发布）
-> 依据：`docs/plans/2026-08-11-dsh-genui-hardening-execution-plan.md` 的审计事实；代码基线为插件仓 `9b68c20`（v0.3.5）、宿主 `staging-20260811T152241Z`
-> 一句话：**修掉审计发现的每一个根因，但把"硬性禁止 + 固定数字"的表述改成"安全边界 + 可调默认值 + 证据驱动的调整路径"，并且不删除、不回退任何已发布能力。**
+> Status: design draft (not implemented, not merged, not released)
+> Basis: audit facts from `docs/plans/2026-08-11-dsh-genui-hardening-execution-plan.md`; code baseline is plugin repo `9b68c20` (v0.3.5), host `staging-20260811T152241Z`
+> In one line: **fix every root cause the audit found, but change "hard prohibition + fixed numbers" wording into "safety boundary + tunable defaults + evidence-driven adjustment path", and do not delete or roll back any shipped capability.**
 
 ---
 
-## 1. 设计原则（取代原计划的"禁止方案"章节）
+## 1. Design principles (replacing the original plan's "prohibited approaches" section)
 
-原计划把很多工程取舍写成了法律条文（"不得用 X""必须 ≤200""必须串行"）。本方案换一种写法：**三类边界，各按各的性质管理**。
+The original plan wrote many engineering trade-offs as legal statutes ("must not use X", "must be ≤200", "must be serial"). This plan uses a different formulation: **three boundary classes, each managed according to its nature**.
 
-| 边界类型 | 含义 | 管理方式 | 例子 |
+| Boundary type | Meaning | Management | Examples |
 |---|---|---|---|
-| **安全边界** | 违反会泄露秘密、破坏用户文件、污染他人会话 | 不可配置，永远成立 | password 值不进 localStorage；安装器不跟随 symlink；面板发布不进 render 函数；E2E 不用 broad pkill |
-| **规模/性能边界** | 防止病态输入卡死页面 | 集中在唯一一张默认值表，可调；调整要有证据 | 面板节点上限、partial 解析尝试上限、LRU 块数 |
-| **语义边界** | 什么机制在什么场景下语义正确 | 写清楚适用场景与降级路径，不搞"一刀切禁用" | 内容指纹用于"同内容恢复状态"是正确语义，用于"消息身份"才是错误语义——按场景区分 |
+| **Safety boundary** | Violating it leaks secrets, destroys user files, or pollutes other sessions | Not configurable, always holds | password values never enter localStorage; installer never follows symlinks; panel publishing never happens inside a render function; E2E never uses broad pkill |
+| **Scale/performance boundary** | Prevents pathological input from freezing the page | Centralized in a single defaults table, tunable; adjustments require evidence | panel node cap, partial parse attempt cap, LRU block count |
+| **Semantic boundary** | Which mechanism is semantically correct in which scenario | State the applicable scenario and the degradation path; no one-size-fits-all bans | A content fingerprint is the correct semantics for "restore state for the same content" and the wrong semantics for "message identity"—differentiate by scenario |
 
-三条总原则：
+Three overall principles:
 
-1. **修根因，但不搞技术洁癖**。某机制（如内容哈希）在 A 场景语义错误、在 B 场景语义正确，就按场景区分使用，而不是整体拉黑。原计划"任何阶段都不得用随机 ID、内容哈希、时间戳"是一刀切；本方案只禁止**语义错误的用法**：随机 ID/时间戳/`useId()` 不能当消息身份（不稳定），内容哈希不能当消息身份（两条相同内容的消息必须是两次独立操作）——但内容指纹作为 `stateKey` 的内容维度（判断"还是不是同一份内容"）恰恰是正确且已在生产验证的用法，保留。
-2. **一切数量限制集中在一张默认值表**，默认值 = 当前已上线行为，改动需要证据（benchmark、真实样本、产品确认），而不是永远锁死，也不是随手放宽。
-3. **不回退**。所有已发布、已演示、已有测试覆盖的能力全部保留：`scene3d`、全部 38 个组件、append 面板、本地判卷、durable 持久化、`/panel` 命令、v1/v2/v2.5/v2.6/v2.7 语义。安全边界上的行为改变（如 password 不持久化）必须是**不破坏渲染的降级**，不是删除功能。
+1. **Fix root causes, but skip technical purism**. When a mechanism (such as content hashing) is semantically wrong in scenario A and semantically right in scenario B, differentiate by scenario instead of blacklisting it wholesale. The original plan's "no random IDs, content hashes, or timestamps at any stage" was one-size-fits-all; this plan forbids only **semantically wrong usage**: random IDs/timestamps/`useId()` cannot serve as message identity (unstable), and a content hash cannot serve as message identity (two messages with identical content must be two independent operations)—but a content fingerprint as the content dimension of a `stateKey` (deciding "is this still the same content") is exactly the correct usage, already validated in production, and stays.
+2. **Every quantity limit is centralized in one defaults table**, where the default = current shipped behavior, and any change requires evidence (benchmark, real sample, product confirmation) rather than being permanently locked down or casually loosened.
+3. **No regressions**. Every shipped, demoed, test-covered capability is preserved: `scene3d`, all 38 components, append panels, local grading, durable persistence, the `/panel` command, and v1/v2/v2.5/v2.6/v2.7 semantics. Behavior changes on a safety boundary (such as password not persisting) must be a **degradation that does not break rendering**, not feature removal.
 
 ---
 
-## 2. 审计事实（沿用原计划，基线已前移）
+## 2. Audit facts (carried over from the original plan, baseline moved forward)
 
-| 项目 | 当前事实（v0.3.5 / 9b68c20） | 根因 |
+| Item | Current fact (v0.3.5 / 9b68c20) | Root cause |
 |---|---|---|
-| 面板追加 | `lastAppendSource` 记"最后一个追加来源" | A→B→A 重复追加；两条消息局部 key 都是 0 时第二条被吞 |
-| 面板顺序 | 围栏以 `Infinity` 发布 | 一次围栏后所有有限 seq 的 `render_ui` 都无法再更新面板 |
-| 面板上限 | 单条修复到 200 节点，合并后无总量限制 | 多轮 append 无限增长 |
-| 表单 | `TabsNode` 未透传 `answers`（`renderNode` 的 tabs 分支漏参） | 标签页内 grouped radio / submit / 判卷断链 |
-| 状态 | `fenceStateKey(sessionId, localFenceKey, fingerprint)`，localFenceKey 不是会话级身份 | 两条消息同位置同内容 → 串状态 |
-| IME | Input Enter / Textarea Ctrl/Cmd+Enter 无组合态保护 | 中文选词 Enter 被误提交 |
-| 敏感输入 | `password` 在公开 spec 中，带 id 字段一律明文进 localStorage | 模型界面可收集并持久化秘密 |
-| partial | 对每个 `}` 重扫前缀 + 反复 `JSON.parse` | 24 KB 病态输入 O(n²)，约 1.68s |
-| 3D | `scene3d-lazy.ts` 永久 `requestAnimationFrame` | 静止时持续占 GPU/电池 |
-| 指针 | 面板拖拽、3D orbit 用 window 级 pointermove/up | 全局监听泄漏、卸载残留 |
-| 安装器 | 对目标直接 `cp` | 可能覆盖 symlink 指向的用户文件 |
-| E2E | 日志路径声明但子进程输出被丢；本地 chip 文字变化算"响应" | 失败无日志、假通过 |
-| 构建 | CSS Modules classMap 键序漂移 | 同源码重复构建产物不一致 |
-| 包体 | `files` 含 `src`、sourcemap、中间 JS | 发布包 4.82 MB / 25.16 MB，含源码逃生口 |
-| 最低版本 | README 写 `47d230e`，实际清单契约需 `0545fdcb`，且尚未有 FenceSource 契约 | 按文档安装可能加载失败 |
-| 远端 CI | 三次运行在 runner 分配前被 Billing 拦截 | 远端无真实门禁 |
+| Panel append | `lastAppendSource` records "the last append source" | A→B→A duplicate append; when both messages have local key 0, the second is swallowed |
+| Panel order | Fence publishes with `Infinity` | After one fence, `render_ui` for all finite seq values can no longer update the panel |
+| Panel cap | Single operation repaired to 200 nodes, no total limit after merge | Repeated append rounds grow without bound |
+| Forms | `TabsNode` does not pass through `answers` (the tabs branch of `renderNode` omits the argument) | Grouped radio / submit / grading inside a tab breaks the chain |
+| State | `fenceStateKey(sessionId, localFenceKey, fingerprint)`, localFenceKey is not a session-level identity | Two messages at the same position with the same content → cross-wired state |
+| IME | Input Enter / Textarea Ctrl/Cmd+Enter has no composition-state guard | Enter while selecting Chinese candidates is mistakenly submitted |
+| Sensitive input | `password` is in the public spec, and anything with an id field goes to localStorage in plaintext | Model-driven UI can collect and persist secrets |
+| partial | Rescans the prefix for every `}` + repeated `JSON.parse` | 24 KB pathological input is O(n²), about 1.68s |
+| 3D | `scene3d-lazy.ts` has a permanent `requestAnimationFrame` | Continuously consumes GPU/battery while idle |
+| Pointers | Panel drag and 3D orbit use window-level pointermove/up | Global listener leaks, residue after unmount |
+| Installer | `cp` directly onto the target | Can overwrite user files a symlink points at |
+| E2E | Log paths are declared but subprocess output is dropped; a local chip text change counts as "response" | No logs on failure, false passes |
+| Build | CSS Modules classMap key order drifts | Repeated builds from the same source produce inconsistent artifacts |
+| Package size | `files` includes `src`, sourcemaps, intermediate JS | Published package 4.82 MB / 25.16 MB, with a source escape hatch |
+| Minimum version | README says `47d230e`, the actual manifest contract needs `0545fdcb`, and there is no FenceSource contract yet | Installing per the docs may fail to load |
+| Remote CI | Three runs were blocked by Billing before runner allocation | No real gate remotely |
 
-原计划对这些事实的根因定位全部成立，本方案沿用，**只改"怎么修"的表述与弹性**。
+The original plan's root-cause diagnoses for all of these facts hold; this plan carries them over and **changes only the wording and flexibility of "how to fix"**.
 
 ---
 
-## 3. 围栏来源契约（宿主侧）
+## 3. Fence source contract (host side)
 
-### 3.1 契约形态（保留原方案核心）
+### 3.1 Contract shape (original plan's core retained)
 
 ```ts
 export interface FenceSource {
-  /** 稳定结构身份，如 ['assistant', finalMessageSeq, textBlockIndex, fenceIndex] */
+  /** Stable structural identity, e.g. ['assistant', finalMessageSeq, textBlockIndex, fenceIndex] */
   id: string
-  /** 三段顺序：消息 seq、文本块序号、围栏序号 */
+  /** Three-part order: message seq, text block index, fence index */
   order: readonly [messageSeq: number, textBlockIndex: number, fenceIndex: number]
 }
 
 export interface FenceRenderContext {
-  /** 归属会话；非会话内渲染时缺省 */
+  /** Owning session; absent when rendered outside a session */
   sessionId?: string
   source?: FenceSource
 }
@@ -70,36 +70,36 @@ export interface FenceRenderContext {
 export type FenceRenderer = (raw: string, reactKey: Key, context?: FenceRenderContext) => ReactNode
 ```
 
-- 宿主从 settled/interrupted 的 `finalNode.seq` 生成稳定 `source`；streaming 阶段 `source` 为空。
-- `fenceIndex` 必须来自 settled 文档的稳定围栏顺序，不得用挂载次数、随机数、时间。
-- 会话 ID 走 `context.sessionId`，不塞进 `source.id`。
+- The host generates a stable `source` from the settled/interrupted `finalNode.seq`; during streaming, `source` is empty.
+- `fenceIndex` must come from the stable fence order of the settled document, never from mount counts, random numbers, or time.
+- Session ID travels via `context.sessionId`, not stuffed into `source.id`.
 
-### 3.2 柔性化改动（相对原方案）
+### 3.2 Softening changes (relative to the original plan)
 
-1. **第三个参数可选**。`context?: FenceRenderContext`，不是必填。原因：契约升级期必然存在"新插件 + 老宿主"组合。老宿主不传 context 时，插件按明确的降级规则运行（见 3.3），而不是崩掉。这不是"兼容层掩盖根因"，而是**契约升级的标准平滑路径**——主仓和插件可以各自独立发布，不要求原子协同。
-2. **source 身份允许"尽力而为"降级链**。优先 `['assistant', seq, block, fence]`；宿主在某条渲染路径上拿不到稳定 seq 时（如无状态历史日志重放），允许降级为消息自身稳定 key（如消息 id）+ block + fence。降级不影响正确性：身份只需要**同一来源重放时稳定、不同来源之间可区分**；seq 只是首选实现。原计划"任何阶段都不得用 X 绕过"的表述取消，改为：**身份必须满足"稳定 + 可区分"两条性质，用什么字段实现是宿主的事**。
-3. **`source.id` 不搞"哈希一律禁止"**。若宿主有稳定的消息内容寻址（而非随机/时间），用它拼身份同样是合法的——性质正确即可。
+1. **The third parameter is optional**. `context?: FenceRenderContext`, not required. Reason: during a contract upgrade there will inevitably be "new plugin + old host" combinations. When an old host passes no context, the plugin runs by explicit degradation rules (see 3.3) instead of crashing. This is not "a compatibility layer hiding the root cause" but the **standard smooth path for a contract upgrade**—the main repo and the plugin can each release independently, with no atomic coordination required.
+2. **Source identity allows a best-effort degradation chain**. Prefer `['assistant', seq, block, fence]`; when the host cannot obtain a stable seq on some render path (e.g. stateless history log replay), it may degrade to the message's own stable key (such as message id) + block + fence. Degradation does not affect correctness: identity only needs to be **stable when the same source is replayed and distinguishable between different sources**; seq is merely the preferred implementation. The original plan's "must not use X to bypass this at any stage" is dropped, replaced by: **identity must satisfy the two properties "stable + distinguishable"; which fields implement it is the host's business**.
+3. **No blanket hash ban for `source.id`**. If the host has stable message content addressing (rather than random/time), composing identity from it is equally legitimate—the properties just have to be right.
 
-### 3.3 插件侧降级规则（无 context 的老宿主）
+### 3.3 Plugin-side degradation rules (old host without context)
 
-| 情况 | 行为 |
+| Case | Behavior |
 |---|---|
-| `panel:true` 且无 `context.sessionId` | 不写面板仓库、不持久化；渲染 `null`（面板本来就是"有宿主会话路由才存在"的表面） |
-| 普通 inline 且无 context | 正常渲染 UI；`stateKey` 为 `undefined` → 不写 localStorage（与现 streaming 行为一致） |
-| 有 `sessionId` 但无 `source`（streaming） | 渲染 inline UI；不发布面板、不持久化 |
-| 有 `sessionId` + `source`（settled） | 完整行为：发布面板 / 用 `sessionId + source.id + fingerprint` 建 stateKey |
+| `panel:true` and no `context.sessionId` | Do not write the panel store, do not persist; render `null` (a panel is inherently a surface that "exists only when there is a host session route") |
+| Ordinary inline and no context | Render the UI normally; `stateKey` is `undefined` → do not write localStorage (consistent with current streaming behavior) |
+| Has `sessionId` but no `source` (streaming) | Render inline UI; do not publish a panel, do not persist |
+| Has `sessionId` + `source` (settled) | Full behavior: publish the panel / build stateKey from `sessionId + source.id + fingerprint` |
 
-插件不再依赖 `active-session.ts` 的全局当前会话猜测（该模块退役，见第 5 节），彻底消除跨会话误投递。
+The plugin no longer depends on `active-session.ts` guessing the globally current session (that module is retired, see section 5), eliminating cross-session misdelivery entirely.
 
-### 3.4 宿主测试（保留原列表，语义不变）
+### 3.4 Host tests (original list retained, semantics unchanged)
 
-两条 settled 消息局部 key 均为 0 → source.id 不同；text block / fence 维度区分；同一消息重放身份一致；两会话交错不串；streaming → settled 只出现一次稳定 source；老宿主无 context 不崩溃。
+Two settled messages both with local key 0 → different source.id; text block / fence dimensions distinguish; replaying the same message yields identical identity; two interleaved sessions do not cross-wire; streaming → settled produces exactly one stable source; an old host without context does not crash.
 
 ---
 
-## 4. 面板操作模型（插件侧）
+## 4. Panel operation model (plugin side)
 
-### 4.1 核心模型（保留原方案）
+### 4.1 Core model (original plan retained)
 
 ```ts
 type PanelOrder = readonly [number, number, number]
@@ -112,155 +112,155 @@ interface PanelOperation {
 }
 ```
 
-每个 session 保存：
+Each session stores:
 
-- `Map<sourceId, PanelOperation>`（持久消息/工具操作）
-- 至多一个 **overflow barrier**（首个因超限被拒的完整 append 的副本，供更早乱序 replace 到达时重算）
-- 本地 `/panel` override（默认面板或 clear + 屏蔽到的最大 message seq）
-- 只读折叠快照
+- `Map<sourceId, PanelOperation>` (persistent message/tool operations)
+- At most one **overflow barrier** (a copy of the first complete append rejected for exceeding the limit, so an earlier out-of-order replace arriving later can recompute)
+- Local `/panel` override (a default panel, or clear + the maximum message seq masked through)
+- A read-only collapsed snapshot
 
-发布规则：
+Publishing rules:
 
-- 围栏（settled + 有 context）：`sourceId = context.source.id`，`order = context.source.order`，`mode = append | replace`（按 spec.append）。发布走 keyed publisher 组件 + `useEffect`，**不在 render 函数里写 store**；StrictMode 双 effect 由 Map 按 sourceId 去重。
-- 工具结果：`sourceId = ['render_ui', block.callId]`，`order = [block.seq, -1, 0]`，`mode = replace`。与围栏进同一个管道，删除第二套排序规则。
+- Fence (settled + has context): `sourceId = context.source.id`, `order = context.source.order`, `mode = append | replace` (per spec.append). Publishing goes through a keyed publisher component + `useEffect`, and **never writes the store inside a render function**; the StrictMode double effect is deduplicated by the Map on sourceId.
+- Tool result: `sourceId = ['render_ui', block.callId]`, `order = [block.seq, -1, 0]`, `mode = replace`. It enters the same pipeline as fences, deleting the second ordering rule.
 
-### 4.2 折叠算法（保留原方案核心，重写为"默认 + 可配"）
+### 4.2 Collapse algorithm (original plan's core retained, rewritten as "defaults + configurable")
 
-每次首次收到新来源，做一次事务式候选折叠：
+On each first receipt of a new source, perform one transactional candidate collapse:
 
-1. 来源早于/等于本地 barrier → 拒绝旧重放。
-2. `sourceId` 已在 Map 或正是 barrier → 幂等返回，不重复通知。
-3. 已存在 barrier：不晚于 barrier 的 append 可进入候选重算，更晚的 append 拒绝；replace 一律进候选（"最新 replace 胜"）。
-4. 用临时副本（不先改正式 Map），按三段 order 升序排序，从最新有效 replace 开始折叠，更早操作裁掉。
-5. `replace` 直接替换；`append` 复用纯函数 `mergePanelSpecs`（同标签 tabs 合并、其余尾部追加），append spec 必须至少一个有效节点。
-6. 每次 append 后用现有的 `validateGenuiSpec` 节点计数**复用同一遍历**；超过 `PANEL_LIMITS.maxNodes`（默认 200）→ 记为首个 overflow barrier，跳过它及更晚 append，保留此前合法快照。禁止第二套遍历，禁止把超限 spec 交给 React。
-7. 最新 replace 之后最多保留 `PANEL_LIMITS.maxAppends`（默认 200）条 append；第 201 条即使节点没增长也按 barrier 规则要求下一次 replace。这是 operation Map 的内存上限——**拒绝而非 LRU 淘汰**，因为淘汰会破坏确定性折叠（结果依赖到达顺序），这是语义理由，不是"禁止 LRU"的教条。
-8. 候选快照、裁剪后的 Map、barrier 全部计算成功才一次性提交；校验异常保持旧状态；快照真正变化才通知一次。
-9. 更晚 replace 成功后清掉更早操作与旧 barrier；session 销毁时清空全部。
+1. Source earlier than/equal to the local barrier → reject the stale replay.
+2. `sourceId` already in the Map or exactly the barrier → idempotent return, no repeat notification.
+3. A barrier already exists: appends no later than the barrier may enter candidate recomputation, later appends are rejected; replaces always enter the candidate set ("latest replace wins").
+4. Use a temporary copy (without first modifying the real Map), sort ascending by the three-part order, collapse from the latest valid replace, and trim earlier operations.
+5. `replace` replaces outright; `append` reuses the pure function `mergePanelSpecs` (tabs with the same label merge, everything else appends at the tail), and an append spec must have at least one valid node.
+6. After each append, **reuse the same traversal** for node counting via the existing `validateGenuiSpec`; exceeding `PANEL_LIMITS.maxNodes` (default 200) → record it as the first overflow barrier, skip it and later appends, and keep the last legal snapshot. A second traversal is forbidden, and an over-limit spec must never be handed to React.
+7. After the latest replace, keep at most `PANEL_LIMITS.maxAppends` (default 200) appends; the 201st requires a next replace under the barrier rules even if no nodes were added. This is the memory cap of the operation Map—**rejection rather than LRU eviction**, because eviction would break deterministic collapse (the result would depend on arrival order); that is a semantic reason, not a "no LRU" dogma.
+8. Candidate snapshot, trimmed Map, and barrier are committed all at once only when every computation succeeds; a validation anomaly keeps the old state; notify once only when the snapshot actually changes.
+9. After a later replace succeeds, clear earlier operations and the old barrier; clear everything when the session is destroyed.
 
-### 4.3 柔性化改动
+### 4.3 Softening changes
 
-1. **所有上限集中到一张表**：
+1. **All caps are centralized in one table**:
 
 ```ts
 export const PANEL_LIMITS = {
-  maxNodes: 200,    // 与 GENUI_LIMITS.maxNodes 同值，但独立可调
-  maxAppends: 200,  // 最新 replace 后允许的 append 条数
+  maxNodes: 200,    // same value as GENUI_LIMITS.maxNodes, but independently tunable
+  maxAppends: 200,  // number of appends allowed after the latest replace
 } as const
 ```
 
-  原方案要求"直接复用 `GENUI_LIMITS.maxNodes`，不新增另一项配置"——这本身就是一种僵硬：面板总量与单条 spec 的节点预算未必永远同值（面板是合并结果，理论上可以给更高预算）。本方案允许两者解耦，默认同值。
-2. **超限后的恢复路径明确**：任何 replace 都能清掉 barrier 重开 append（原方案已有）；系统提示/SKILL/诊断统一要求"面板达上限后发送 replace"。不引入虚拟列表（面板上限本来就该让模型换内容，而不是无限堆）。
-3. **tie-break 规则写明**：三段 order 相同（同消息同位置重放）时按到达顺序后到者胜——这只在"同一条操作的重复提交"发生，Map 按 sourceId 去重后实际不产生歧义；写明是为了测试可断言，不新增隐藏排序。
-4. **不要求所有到达严格有序**。乱序（B 先到 A 后到）由折叠算法天然处理，测试覆盖即可，不强制调用方保证顺序。
+  The original plan demanded "reuse `GENUI_LIMITS.maxNodes` directly, do not add another config item"—which is itself a form of rigidity: the panel total and a single spec's node budget need not always have the same value (a panel is a merged result and could in principle be given a higher budget). This plan allows the two to decouple, with the default value equal.
+2. **The recovery path after exceeding the limit is explicit**: any replace clears the barrier and reopens appends (already in the original plan); system prompt/SKILL/diagnostics uniformly require "send a replace once the panel hits the cap". No virtual list is introduced (a panel cap is supposed to make the model change content, not stack it indefinitely).
+3. **The tie-break rule is written down**: when the three-part order is identical (replay of the same message at the same position), the later arrival wins—this only happens on "a duplicate submission of the same operation", and after Map deduplication by sourceId there is no real ambiguity; it is written down so tests can assert it, adding no hidden ordering.
+4. **Not all arrivals are required to be strictly ordered**. Out-of-order arrival (B before A) is handled naturally by the collapse algorithm; test coverage suffices, and callers are not forced to guarantee order.
 
-### 4.4 `/panel` 本地命令（保留）
+### 4.4 `/panel` local command (retained)
 
-`setLocalPanel / clearLocalPanel` 作为明确本地接口，记录 barrier；下一条更晚的真实操作可越过 barrier，旧历史重放不能复活面板。不伪造 `Infinity`/`MAX_SAFE_INTEGER` 消息。折叠时 local override 作 base，再处理 barrier 之后的操作。
+`setLocalPanel / clearLocalPanel` as explicit local interfaces recording the barrier; the next later real operation can move past the barrier, while a stale history replay cannot revive the panel. No fake `Infinity`/`MAX_SAFE_INTEGER` message. During collapse, the local override acts as the base, then operations after the barrier are processed.
 
-### 4.5 inline 状态身份（保留核心 + 降级路径）
+### 4.5 inline state identity (core retained + degradation path)
 
-- streaming / 无 context：`stateKey = undefined`，不写 localStorage。
-- settled + context：`fenceStateKey = sessionId + source.id + fingerprint(spec)`。fingerprint 只做**内容维度**（同内容恢复状态、新内容换新 key），来源身份做**位置维度**——两个维度语义不同，各司其职。
-- 顶层 ErrorBoundary 的 React key 用 `source.id ?? reactKey`；删除 `GenuiBlock` 内部无效重复 key。
-- 面板组件：`stateKey = panelStateKey(sessionId, JSON.stringify(spec))` 只计算一次，同时作 ErrorBoundary key 与 GenuiBlock stateKey，内容变化整树原子重建（不用 `useEffect([stateKey])` 分步清空）。
+- streaming / no context: `stateKey = undefined`, nothing written to localStorage.
+- settled + context: `fenceStateKey = sessionId + source.id + fingerprint(spec)`. The fingerprint serves only the **content dimension** (restore state for the same content, new key for new content), while source identity serves the **position dimension**—two dimensions with different semantics, each doing its own job.
+- The top-level ErrorBoundary's React key uses `source.id ?? reactKey`; the ineffective duplicate key inside `GenuiBlock` is deleted.
+- Panel component: `stateKey = panelStateKey(sessionId, JSON.stringify(spec))` computed once, serving simultaneously as the ErrorBoundary key and the GenuiBlock stateKey; a content change atomically rebuilds the whole tree (rather than clearing it in stages via `useEffect([stateKey])`).
 
-`active-session.ts` 退役：面板定位只来自 context.sessionId 与工具卡 props.sessionId。无 context 的宿主上面板功能自动不可用（降级），这是契约升级的代价，明确写入 README 兼容矩阵。
-
----
-
-## 5. 表单、状态、IME 与敏感输入边界
-
-### 5.1 tabs 透传块级答案状态（保留）
-
-`renderNode` 的 tabs 分支补 `answers={answers}`，`TabsNode` 不新建仓库/Context。测试：tab 内 grouped radio + input(id) + submit、本地判卷锁定/重做、切 tab 状态保留、payload 同时含 answers 与 fields。
-
-### 5.2 简化答案状态（保留）
-
-删除未被读取的 `AnswerEntry.label`：内存答案改 `Record<string, string>`；`setAnswer` 只比字符串；题目显示唯一读 `QuestionMeta.label`；localStorage 本就是字符串表，不迁移不加兼容层；submit payload 不再二次转换；Radio 的 React key 加入 `round`，删除"监听 round 再 setSelected"的同步 effect。验收：v2.5/v2.6/v2.7 行为不变、代码净减少。
-
-### 5.3 字段不变量（保留）
-
-- `value.trim() === ''` → 从共享 `fields` 删除该 id；非空保存用户原字符串，payload 不擅自 trim。
-- Input/Textarea 初挂时把非空 `node.value` 注册进 fields。
-- Submit 的 `answered`/`ready`/payload 统一用同一个 `filledFields`，防御性过滤空白。
-- 不把"任一字段非空即可提交"擅自改成"全部必填"。
-
-### 5.4 IME 保护（复用宿主已验证的三层判定，保留）
-
-Input 的 Enter 与 Textarea 的 Ctrl/Cmd+Enter 使用宿主主输入框同款三层保护：
-
-1. `compositionstart` → 置 composing ref；
-2. `compositionend` → 延迟 10ms 清 ref（覆盖 Safari closing keydown 顺序）；
-3. keydown 同时查 ref、`nativeEvent.isComposing`、`nativeEvent.keyCode === 229`。
-
-这是"复用已验证实现"，不是新发明。测试：isComposing:true 不提交、keyCode 229 不提交、compositionEnd 后紧跟 Enter 不提交、延迟结束后普通 Enter 只提交一次、Textarea Ctrl/Cmd+Enter 同路径。真实验收：隔离页面中文拼音"候选 → Enter 选词 → 再 Enter 提交"，第一次 Enter 不产生模型消息。
-
-### 5.5 敏感输入：安全降级而非删除（本方案与原方案的关键分歧）
-
-原方案：删除 `password` 能力（spec 去类型、guard 丢节点、全文档删教学）。
-本方案：**保留渲染能力，封死数据出口**。理由：删除能力会让已生成的界面（历史消息、外部 demo）在升级后整块消失或变成明文文本框，是用户可见回退；而安全问题的本质是"秘密被收集 + 被持久化"，不是"输入框有密码类型"。
-
-设计：
-
-1. **渲染**：`inputType: 'password'` 保持合法，`<input type="password">` 本来就打码显示。guard 不再丢节点（原方案"不得静默去掉属性后渲染成可见文本框"的担忧不存在——它本来就 masked）。
-2. **持久化**：`interaction-store` 对 password 字段**跳过写入**——`saveBlockState` 过滤 `fields` 中的 password 输入值；`loadBlockState` 也不恢复（每次刷新密码字段清空，与浏览器密码框语义一致）。
-3. **提交**：password 字段值可随 action payload 发给模型（用户显式输入 = 授权使用），但**不进 localStorage**、不进 submit 的 `fields` 收集？——这里取折中：**不持久化 + 不进 submit fields 收集**（submit 的 fields 是"表单数据收集"，与持久化同源），但带 `action` 的 password 输入仍可即时发送。这样"模型界面收集密码"的成本从"静默落盘"变成"用户亲手提交一次"，是可控边界。
-4. **教学**：系统提示、SKILL.md、README 删除 password 教学，增加明确规则：**GenUI 不得索取密码、API Key、访问令牌、恢复码或其他秘密**；示例中出现的密码一律用占位符说明。
-5. **测试**：password spec 渲染为 masked input；刷新后值不恢复；`localStorage` 无该字段；submit payload 不含 password 字段；恶意 spec 不产生可见明文。
-
-这是"能力保留 + 数据出口收紧"的安全降级，满足"不能有回退"同时堵住真实风险。
-
-### 5.6 诚实点击反馈（保留）
-
-按钮本地 chip 文案"已响应"→"已触发"（只证明本地事件触发，不暗示模型已收到）。不扩展 `GenuiActionHandler` 为 Promise；宿主提供统一发送失败反馈通道后再做异步成败状态。现有 catch 至少记录不含 action payload/秘密值的错误 + session 定位，不无声吞掉。
+`active-session.ts` is retired: panel targeting comes only from context.sessionId and the tool card's props.sessionId. On hosts without context, panel functionality is automatically unavailable (degradation); this is the cost of the contract upgrade and is documented explicitly in the README compatibility matrix.
 
 ---
 
-## 6. 解析、3D 与指针性能
+## 5. Forms, state, IME, and sensitive-input boundaries
 
-### 6.1 partial 解析：单次前向扫描 + 有界尝试（保留核心，上限可配）
+### 5.1 tabs passing through block-level answer state (retained)
 
-- 完整 `JSON.parse` 最多一次（常见路径）。
-- 一个小型纯候选收集器从左到右只读原文一次：正确跳过字符串/转义，维护括号栈；在有效对象闭合且栈深 ≤ `GENUI_LIMITS.maxDepth` 时记录 `{ end, closingSuffix }`，环形缓冲保留最长方向的 `MAX_PARTIAL_REPAIR_ATTEMPTS`（默认 32）个候选。
-- balanced prefix 与 unfinished candidate 在同一次扫描合并去重；扫描结束后从最长候选开始 parse。**禁止**在 `}` 循环里 `scanBrackets(text.slice(...))` 或对任一 prefix 二次扫描。
-- 达到尝试上限返回 `null`，等待更多流式内容或 settled fallback——这是流式路径的固有节奏，不是失败。
-- 不引入 tokenizer 依赖。理由写清楚：解析器库对"一次前向扫描 + 少量 parse"的场景是过重依赖；**只有当真实流式样本证明恢复率不足时**，才按证据切换到 tokenizing parser——这是明确的调整路径，不是"永远不许换"。
-- 测试：病态 24 KB / 8000 闭合对象输入；收集器暴露 `scannedChars` 诊断值（不从包入口导出），断言 = 输入长度且候选 ≤ 上限；spy `JSON.parse` 断言总调用 ≤ 完整 1 次 + 上限 N 次；同机 20 次 benchmark P95 < 50ms 作为本地证据（不做易抖动 CI 断言）。
+The tabs branch of `renderNode` adds `answers={answers}`; `TabsNode` creates no new store/Context. Tests: grouped radio + input(id) + submit inside a tab, local grading lock/redo, state preserved across tab switches, payload containing both answers and fields.
 
-### 6.2 scene3d：保留产品能力，只修永久帧循环（不回退）
+### 5.2 Simplified answer state (retained)
 
-- **不删除 scene3d**（已公开、已演示、gallery/demo 在使用）。原方案"使用为 0 + 产品确认"的删除门保留为独立决策门，但本方案默认不启动该门——删除是产品决策，不是工程优化。
-- 事件驱动渲染：初始化完成后 render 一次；orbit 更新相机后立即 render 一次；pointer move（拖拽中）与 wheel 触发 orbit + render；静止时 0 个持续动画帧。
-- 保留 mesh/geometry/material/renderer 的正确 dispose。
-- 测试：初始化后 renderer 只 render 一次；静置一秒不增加；一次 drag move 与一次 wheel 各增加一次；headless Chrome 中拖拽缩放仍有效；Performance 录制静止场景无持续 RAF。
+Delete the never-read `AnswerEntry.label`: in-memory answers become `Record<string, string>`; `setAnswer` compares strings only; the question display reads solely from `QuestionMeta.label`; localStorage was already a string table, so no migration and no compatibility layer; the submit payload is no longer converted twice; the Radio React key includes `round`, and the "listen to round then setSelected" sync effect is deleted. Acceptance: v2.5/v2.6/v2.7 behavior unchanged, net code reduction.
 
-### 6.3 Pointer Capture 取代全局监听（保留）
+### 5.3 Field invariants (retained)
 
-- 面板拖拽：`pointerdown` 在 handle 上 `setPointerCapture(pointerId)`，move/up/cancel 全绑 handle；删除 window pointermove/pointerup 注册/注销/清理 effect；保留 120–600px 夹取、折叠后高度记忆、可访问性 separator。
-- 3D orbit：拖拽移到 canvas pointer capture（canvas 已独占 pointer 事件，`wheel` 的 `{passive:false}` 保留），删除 scene3d 的 window 监听。
-- 测试：拖出元素边界仍连续、pointercancel 清 active、松手后不再变化、卸载无残留、源码不再出现 window pointer listener。
+- `value.trim() === ''` → delete that id from the shared `fields`; non-empty stores the user's original string, and the payload never trims on its own.
+- On first mount, Input/Textarea register a non-empty `node.value` into fields.
+- Submit's `answered`/`ready`/payload uniformly use the same `filledFields`, defensively filtering blanks.
+- Do not unilaterally change "any non-empty field allows submit" into "all fields required".
+
+### 5.4 IME protection (reusing the host's already-validated three-layer check, retained)
+
+Input's Enter and Textarea's Ctrl/Cmd+Enter use the same three-layer protection as the host's main input:
+
+1. `compositionstart` → set the composing ref;
+2. `compositionend` → clear the ref after a 10ms delay (covering Safari's closing keydown order);
+3. keydown checks the ref, `nativeEvent.isComposing`, and `nativeEvent.keyCode === 229` together.
+
+This is "reusing a validated implementation", not a new invention. Tests: isComposing:true does not submit, keyCode 229 does not submit, Enter immediately after compositionEnd does not submit, an ordinary Enter after the delay submits exactly once, Textarea Ctrl/Cmd+Enter takes the same path. Real acceptance: on an isolated page, Chinese pinyin "candidates → Enter to pick → Enter again to submit", where the first Enter produces no model message.
+
+### 5.5 Sensitive input: safe degradation rather than deletion (the key divergence from the original plan)
+
+Original plan: delete the `password` capability (remove the type from the spec, drop the node in the guard, remove all teaching from the docs).
+This plan: **keep the rendering capability, seal the data exit**. Reason: deleting the capability would make already-generated interfaces (history messages, external demos) vanish entirely or turn into plaintext text boxes after an upgrade, which is a user-visible regression; and the essence of the security problem is "a secret is collected + persisted", not "an input box has a password type".
+
+Design:
+
+1. **Rendering**: `inputType: 'password'` stays legal, and `<input type="password">` is masked by definition. The guard no longer drops the node (the original plan's worry about "silently removing the attribute and rendering a visible text box" does not exist—it was masked all along).
+2. **Persistence**: `interaction-store` **skips writing** password fields—`saveBlockState` filters password input values out of `fields`; `loadBlockState` does not restore them either (the password field is cleared on every refresh, consistent with browser password-box semantics).
+3. **Submission**: a password field value may be sent to the model in the action payload (explicit user input = authorization to use), but **it does not enter localStorage** or the submit `fields` collection?—here we take a middle path: **no persistence + no inclusion in the submit fields collection** (submit's fields are "form data collection", the same source as persistence), but a password input with an `action` can still be sent immediately. This turns the cost of "model UI collects passwords" from "silently written to disk" into "the user personally submits once", a controllable boundary.
+4. **Teaching**: system prompt, SKILL.md, and README drop password teaching and add an explicit rule: **GenUI must not request passwords, API keys, access tokens, recovery codes, or other secrets**; any password appearing in examples is shown only as a placeholder.
+5. **Tests**: a password spec renders as a masked input; the value is not restored after refresh; `localStorage` has no such field; the submit payload contains no password field; a malicious spec produces no visible plaintext.
+
+This is a safe degradation of "capability retained + data exit tightened", satisfying "no regressions" while closing the real risk.
+
+### 5.6 Honest click feedback (retained)
+
+Button local chip text "responded" → "triggered" (it only proves the local event fired, without implying the model received it). `GenuiActionHandler` is not extended to a Promise; async success/failure state waits until the host provides a unified send-failure feedback channel. The existing catch at least records the error without action payload/secret values, plus session targeting, instead of swallowing it silently.
 
 ---
 
-## 7. 构建、包体、安装器
+## 6. Parsing, 3D, and pointer performance
 
-### 7.1 确定性构建（保留）
+### 6.1 partial parsing: single forward scan + bounded attempts (core retained, cap configurable)
 
-CSS Modules classMap 构造前按本地类名做固定 UTF-16 排序（不用 `localeCompare`，避免 locale 差异；不改 hash 值，只固定键序；不新增测试专用生产导出）。验收：同一干净 worktree 连续构建 5 次 `shasum -a 256 lib/client.js` 一致；macOS 产物在 Ubuntu CI 重建无 diff。
+- A full `JSON.parse` at most once (the common path).
+- A small pure candidate collector reads the raw text only once, left to right: correctly skipping strings/escapes, maintaining a bracket stack; when a valid object closes and the stack depth ≤ `GENUI_LIMITS.maxDepth`, it records `{ end, closingSuffix }`, and a ring buffer keeps the `MAX_PARTIAL_REPAIR_ATTEMPTS` (default 32) candidates in the longest direction.
+- Balanced prefixes and unfinished candidates are merged and deduplicated in the same scan; after the scan finishes, parsing starts from the longest candidate. It is **forbidden** to call `scanBrackets(text.slice(...))` inside a `}` loop or to rescan any prefix.
+- Reaching the attempt cap returns `null`, awaiting more streaming content or the settled fallback—this is the inherent rhythm of the streaming path, not a failure.
+- No tokenizer dependency is introduced. The reason is stated plainly: a parser library is an overweight dependency for a "single forward scan + a few parses" scenario; **only when real streaming samples prove the recovery rate is insufficient** should we switch to a tokenizing parser on the evidence—that is an explicit adjustment path, not "never allowed to change".
+- Tests: pathological 24 KB / 8000 closed-object input; the collector exposes a `scannedChars` diagnostic (not exported from the package entry), asserting it equals the input length and candidates ≤ the cap; spy on `JSON.parse` asserting total calls ≤ 1 full + N capped; a 20-run same-machine benchmark with P95 < 50ms as local evidence (no flaky CI assertion).
 
-### 7.2 从 src 直接构建，tsc 只产声明（保留，原子提交）
+### 6.2 scene3d: keep the product capability, fix only the permanent frame loop (no regressions)
 
-- `tsconfig.json`：`emitDeclarationOnly: true`；关 `declarationMap`，删无意义 `sourceMap`；单包无 project reference → `tsc -p tsconfig.json`，删 `composite`/`incremental`，不再生成 `.tsbuildinfo`。
-- tsdown：client entry `src/client/index.tsx`；Node entries `src/plugin/index.ts`、`src/plugin/invariant.ts`；CSS 按源码 importer 解析，删除 `sourceAssetPath`/`existsSync`/`sep`/`lib/types` 回溯；生产浏览器包关 sourcemap；按当前 tsdown 类型把 `external`→`deps.neverBundle`、`noExternal`→`deps.alwaysBundle`、`inlineDynamicImports`→`codeSplitting:false`。
-- 删除 `lib/types` 下中间 JS/JS map/d.ts map；保留 d.ts 与顶层三个运行 JS。
-- 验收：`node --check` 三个 JS；`test -z "$(find lib/types -type f \( -name '*.js' -o -name '*.map' \) -print -quit)"`（失败时打印完整 find 结果帮助定位）；tsdown 无废弃配置警告。
+- **Do not delete scene3d** (already public, already demoed, used by gallery/demo). The original plan's deletion gate of "usage is 0 + product confirmation" is retained as an independent decision gate, but this plan does not trigger it by default—deletion is a product decision, not an engineering optimization.
+- Event-driven rendering: render once after initialization completes; render once immediately after orbit updates the camera; pointer move (during drag) and wheel trigger orbit + render; 0 continuous animation frames when idle.
+- Keep correct dispose of mesh/geometry/material/renderer.
+- Tests: after initialization the renderer renders only once; sitting idle for one second adds nothing; one drag move and one wheel each add one; drag-zoom still works in headless Chrome; a Performance recording of an idle scene shows no continuous RAF.
 
-### 7.3 依赖按真实运行边界归类（保留）
+### 6.3 Pointer Capture replacing global listeners (retained)
 
-`mermaid`、`three` → devDependency（已内联，仅构建需要）；`react` → peer + dev；`react-dom` → dev only（源码零 import，删除 peer）；DSH 内部包 + cordis → peer。删除 EXTERNALS 中未实际 import 的 `react-dom`/`react-dom/client`；更新锁文件；修正文档"git/link 安装需下载 Mermaid/Three/React"的过期说法；验证生产 bundle 无 `require('mermaid')`/`require('three')`/`require('react-dom')`。**不虚报 bundle 收益**（9.02 MB 主包不会因依赖归类变小）。
+- Panel drag: `pointerdown` on the handle calls `setPointerCapture(pointerId)`, with move/up/cancel all bound to the handle; delete the window pointermove/pointerup registration/unregistration/cleanup effect; keep the 120–600px clamp, height memory after collapse, and accessible separator.
+- 3D orbit: drag moves to canvas pointer capture (the canvas already owns pointer events, `wheel`'s `{passive:false}` retained), and scene3d's window listeners are deleted.
+- Tests: dragging beyond the element's bounds stays continuous, pointercancel clears active, no further changes after release, no residue after unmount, and window pointer listeners no longer appear in the source.
 
-### 7.4 工具链（柔性化）
+---
+
+## 7. Build, package size, installer
+
+### 7.1 Deterministic build (retained)
+
+Before constructing the CSS Modules classMap, sort by local class name with a fixed UTF-16 ordering (no `localeCompare`, avoiding locale differences; hash values unchanged, only key order fixed; no test-only production export added). Acceptance: 5 consecutive builds in the same clean worktree produce identical `shasum -a 256 lib/client.js`; artifacts built on macOS rebuild on Ubuntu CI with no diff.
+
+### 7.2 Build directly from src, tsc emits declarations only (retained, atomic commit)
+
+- `tsconfig.json`: `emitDeclarationOnly: true`; turn off `declarationMap`, delete the meaningless `sourceMap`; single package with no project reference → `tsc -p tsconfig.json`, delete `composite`/`incremental`, and no longer generate `.tsbuildinfo`.
+- tsdown: client entry `src/client/index.tsx`; Node entries `src/plugin/index.ts`, `src/plugin/invariant.ts`; resolve CSS by source importer, deleting the `sourceAssetPath`/`existsSync`/`sep`/`lib/types` fallback; turn off sourcemaps for the production browser bundle; per the current tsdown types, rename `external`→`deps.neverBundle`, `noExternal`→`deps.alwaysBundle`, `inlineDynamicImports`→`codeSplitting:false`.
+- Delete the intermediate JS/JS map/d.ts map under `lib/types`; keep the d.ts files and the three top-level runtime JS files.
+- Acceptance: `node --check` on the three JS files; `test -z "$(find lib/types -type f \( -name '*.js' -o -name '*.map' \) -print -quit)"` (on failure print the full find output to help locate it); tsdown reports no deprecated configuration warnings.
+
+### 7.3 Classify dependencies by the real runtime boundary (retained)
+
+`mermaid`, `three` → devDependency (already inlined, needed only for builds); `react` → peer + dev; `react-dom` → dev only (zero imports in the source, delete the peer); DSH internal packages + cordis → peer. Remove `react-dom`/`react-dom/client` from EXTERNALS that are not actually imported; update the lockfile; fix the docs' outdated claim that "git/link installation must download Mermaid/Three/React"; verify the production bundle has no `require('mermaid')`/`require('three')`/`require('react-dom')`. **Do not overstate bundle gains** (the 9.02 MB main bundle will not shrink from dependency reclassification).
+
+### 7.4 Toolchain (softened)
 
 ```json
 {
@@ -269,140 +269,140 @@ CSS Modules classMap 构造前按本地类名做固定 UTF-16 排序（不用 `l
 }
 ```
 
-- `packageManager` 写当前锁定版本是 corepack 惯例（只约束 corepack 用户，`corepack use` 随时可改），不算刚性锁死；engines 用范围。
-- 安装脚本**不自动改用户全局工具链**：pnpm 不满足时打印明确命令并失败（原方案），但**不执行** `corepack enable`。
-- CI 与本地都走 `corepack pnpm`，不落回 PATH 裸 pnpm——这是可执行约定，不是设计教条。
+- Writing the currently locked version in `packageManager` is corepack convention (it constrains only corepack users, and `corepack use` can change it at any time), so it is not a rigid lock; engines uses a range.
+- Install scripts **do not automatically modify the user's global toolchain**: when pnpm does not satisfy the requirement, print an explicit command and fail (as in the original plan), but do **not** run `corepack enable`.
+- CI and local both go through `corepack pnpm`, never falling back to a bare pnpm on PATH—this is an executable convention, not a design dogma.
 
-### 7.5 发布包表面（保留核心，阈值可配）
+### 7.5 Published package surface (core retained, thresholds configurable)
 
-- 删除 `exports['./src/*']`；保留 `exports['./package.json']`（安装器与 DSH 客户端模块发现都要解析包清单）。
-- `files` 明确白名单：`lib/index.js`、`lib/invariant.js`、`lib/client.js`、`lib/types/plugin/index.d.ts`、`lib/types/plugin/invariant.d.ts`、`lib/types/client/index.d.ts`、`SKILL.md`、`README.md`、`CHANGELOG.md`、`demo-prompts.md`、`cordis.patch.yml`。`package.json`/`LICENSE` 由 npm 强制包含，列入 pack 校验允许清单。
-- 新增 `scripts/verify-pack.mjs`：读 `npm pack --dry-run --json`，断言三个运行 exports 的 JS 与类型入口存在、`./package.json` export 可解析、无 `src/`/`.map`/`.tsbuildinfo`/`lib/types/**/*.js`、压缩包 < 3 MB、解包 < 10 MB。**阈值支持环境变量覆盖**（如 `GENUI_PACK_MAX_TARBALL`），默认值 = 本方案目标；发现未知文件或超限时列出实际条目，不静默放宽。
+- Delete `exports['./src/*']`; keep `exports['./package.json']` (both the installer and DSH client module discovery must resolve the package manifest).
+- `files` becomes an explicit allowlist: `lib/index.js`, `lib/invariant.js`, `lib/client.js`, `lib/types/plugin/index.d.ts`, `lib/types/plugin/invariant.d.ts`, `lib/types/client/index.d.ts`, `SKILL.md`, `README.md`, `CHANGELOG.md`, `demo-prompts.md`, `cordis.patch.yml`. `package.json`/`LICENSE` are force-included by npm and are listed in the pack-check allowlist.
+- Add `scripts/verify-pack.mjs`: read `npm pack --dry-run --json`, assert that the JS and type entries for the three runtime exports exist, that the `./package.json` export resolves, that there is no `src/`/`.map`/`.tsbuildinfo`/`lib/types/**/*.js`, that the tarball is < 3 MB and the unpacked size < 10 MB. **Thresholds support environment-variable overrides** (such as `GENUI_PACK_MAX_TARBALL`), with defaults = this plan's targets; on an unknown file or an over-limit result, list the actual entries rather than silently loosening the check.
 
-### 7.6 安装器文件安全边界（保留——安全边界不可配）
+### 7.6 Installer file safety boundary (retained—safety boundaries are not configurable)
 
-安装器先验证 profile 参数只含允许字符；Node 解析路径用环境变量，不把用户路径插进 `node -e` 字符串。Skill 同步分类：
+The installer first validates that the profile argument contains only allowed characters; it parses paths in Node using environment variables, never interpolating user paths into a `node -e` string. Skill sync classification:
 
-| 目标状态 | 行为 |
+| Target state | Behavior |
 |---|---|
-| 不存在 | 同目录临时文件 + 原子 mv 创建 |
-| 普通文件 | 同目录临时文件 + 原子 mv 替换 |
-| symlink 解析后与来源同一文件 | 成功跳过，不改链接 |
-| symlink 指向其他文件 | 安全失败，显示目标，不跟随写入 |
-| 悬空 symlink | 安全失败 |
-| 目录 | 安全失败 |
+| Does not exist | Same-directory temp file + atomic mv create |
+| Regular file | Same-directory temp file + atomic mv replace |
+| symlink resolving to the same file as the source | Skip successfully, do not change the link |
+| symlink pointing at another file | Fail safely, show the target, do not follow and write |
+| Dangling symlink | Fail safely |
+| Directory | Fail safely |
 
-- 不再直接 `cp`；临时文件异常退出要清理；冲突与包内 Skill 缺失必须非零退出；pnpm 缺失不自动 `corepack enable`。
-- 测试：临时 `DSH_HOME`、假 `dsh/pnpm/git`、真实 shell 驱动七类场景；最关键用例断言"不同目标 symlink 指向的哨兵文件字节不变"。
-
----
-
-## 8. E2E、CI、文档与发布
-
-### 8.1 E2E 预检（保留）
-
-启动任何进程前：`--install` 仅限 `link|tarball|git`，tarball 必须给实际 `.tgz` 绝对路径 + 预期 SHA256；端口合法且空闲（未指定用 Node 标准库申请）；`--dsh-root`/`--dsh-bin` 绝对路径且 `realpath(dsh-bin)` 在 `realpath(dsh-root)` 内；默认不从 PATH 找 `dsh`；记录 `git rev-parse HEAD` 并与声明宿主 SHA 一致；日志开头打印宿主 SHA、插件 SHA、Node/pnpm 版本，不打印任何 Key；检查宿主含 fence source 契约；link 模式三入口存在、tarball 文件与 SHA 匹配、git 模式固定完整 ref；吸收现有 `scripts/e2e.mjs` WIP（filechooser 选择临时工作区、等待 composer 脱离 inert/disabled，超时保存截图与日志并失败，禁止 `.catch(() => {})` 假容错）；完整模型模式要 Key 但绝不打印，`--smoke` 不要求。
-
-### 8.2 真实日志与窄清理（保留）
-
-web stdout/stderr 真写 `webLog`；启动失败输出日志尾部；cleanup 放 `finally`（不依赖 `process.on('exit')`）；先精确 child/process group 正常终止、超时才强杀；禁止 broad `pkill`、不碰用户现有 3080 listener；失败保留/复制日志与截图到稳定 artifacts，成功才清临时目录。
-
-### 8.3 杜绝 action 假通过（保留）
-
-点击前记录最后一个 `[data-chat-flow-kind="assistant-step"]` 的 `data-chat-flow-key`；等当前助手完成（无 `[data-streaming]`）；点击；必须出现新 assistant-step key 且新节点结束 streaming，**或**出现由新 operation source 驱动的面板快照；仅按钮 chip / 同 DOM 文本变化不算响应；`pageerror`、client.js 404、新回复超时都失败。git 安装固定 `--ref <完整 SHA>`。
-
-### 8.4 两层 E2E（保留）
-
-`--smoke`（每 PR，不用模型额度：宿主二进制、安装、profile、首页 200、client.js 200、无页面异常、插件 boot）+ 完整 E2E（手动发布门禁，受保护 Key：模型 fence、UI、action 消息、真实新助手回复、面板更新）。完整 E2E 必测三条路径且同一宿主 SHA：link 候选、tarball + SHA256、git 固定插件 SHA。tarball 路径承担 7.2 之后延后的普通围栏、Mermaid、scene3d、真实 profile 加载验收。
-
-### 8.5 CI 矩阵（柔性化）
-
-- 统一 `DSH_ROOT`（CI 先算规范化绝对路径再克隆；checkout 后断言 rev-parse 等于目标 SHA；`DSH_BIN` 固定为构建出的绝对路径；vitest.config 真读 `process.env.DSH_ROOT`，默认才用本机路径；阶段 1 未合并时用 `/private/tmp` 生成仅当次的 paths 覆盖，绝不提交机器绝对路径；`test -f "$DSH_ROOT/packages/client/ui-primitives/src/index.ts"` 预检）。
-- **默认矩阵**（不是"必须两个"）：Node 22.19.x + 最低宿主 SHA（最低支持线）+ Node 24.x + 当前 main（前向集成）。每矩阵跑冻结安装、类型检查、全量测试、构建、pack 校验、lib drift、no-key smoke。矩阵数量是发布负责人的默认选择，可按实际支持面增删。
-- Billing 未恢复时如实报告"本地与 PR 完成，远端发布门禁阻塞"，不跳过后宣称完成。
-
-### 8.6 文档事实修正（保留）
-
-README：删"commit >= SHA"表达；写"需要包含阶段 1 宿主提交 `<SHA>` 的 DSH 版本"；历史说明指出 `0545fdcb` 是旧清单契约最低点但不满足 FenceSource 契约；删硬编码"135 测试"；"面板可无限长大"→"整面板默认最多 200 节点，达到上限后应发送 replace"；删 git/link 需下载 Mermaid/Three/React 的过期说法；删 password 教学、加秘密禁令；更新 E2E 命令与 smoke/固定 SHA 说明。CHANGELOG 保留历史数字不伪造；SKILL.md 与系统提示同步：stable panel 语义、节点/操作上限默认值、password 不持久化、append 达上限后 replace。
-
-### 8.7 发布候选（保留兼容元组，数字不锁死）
-
-`HOST_SHA`（含阶段 1 契约、已进入受支持分支）+ `PLUGIN_SHA`（含版本/changelog/锁文件/确定产物）。严格顺序：宿主契约先入受支持分支 → 插件全量完成 → 版本 0.4.0 定稿 → 从干净 SHA 重建重测 → 远端矩阵 → git 路径 E2E → **未获授权停在 PR/候选** → 合并后重读实际 `PLUGIN_SHA_FINAL` 重跑全部证据 → 冻结唯一发布元组 → 授权后建 tag/Release → 全新 `DSH_HOME` + 精确 `DSH_BIN` 安装验证后才转正式。0.3.x 不补造历史标签。版本号与数字阈值都是默认值，随发布事实对齐。
-
-**发布渠道红线（2026-08-12 用户确认）**：宿主仍处测试期，**npm/Workshop 等任何公开分发渠道一律不可用**——`npm publish` 会把插件（及宿主生态的存在）公开化，明确禁止。`npm pack`/`verify-pack.mjs` 只做本地 tarball 验证，永不发布。分发只走**私有 Git URL**（`git+ssh` 或私有 registry 由发布负责人另行确认）。README 等随包公开文档不得出现宿主内部信息（宿主 SHA、快照名、契约实现细节）。
+- No more direct `cp`; temp files must be cleaned up on abnormal exit; conflicts and a missing in-package Skill must exit non-zero; a missing pnpm must not auto-run `corepack enable`.
+- Tests: temporary `DSH_HOME`, fake `dsh/pnpm/git`, a real shell driving the seven scenarios; the most critical case asserts "the sentinel file bytes a different target symlink points at are unchanged".
 
 ---
 
-## 9. 与原方案差异对照表
+## 8. E2E, CI, docs, and release
 
-| # | 原方案（刚性表述） | 本方案（柔性表述） | 理由 |
+### 8.1 E2E preflight (retained)
+
+Before starting any process: `--install` limited to `link|tarball|git`, where tarball must provide the absolute path of an actual `.tgz` + the expected SHA256; the port must be valid and free (when unspecified, allocate one via the Node standard library); `--dsh-root`/`--dsh-bin` must be absolute paths with `realpath(dsh-bin)` inside `realpath(dsh-root)`; do not look up `dsh` on PATH by default; record `git rev-parse HEAD` and require it to match the declared host SHA; print the host SHA, plugin SHA, and Node/pnpm versions at the top of the log, without printing any key; check that the host contains the fence source contract; the link mode has the three entries present, the tarball file matches its SHA, and git mode pins a full ref; absorb the existing `scripts/e2e.mjs` WIP (filechooser select a temporary workspace, wait for the composer to leave inert/disabled, on timeout save a screenshot and logs and fail, never a `.catch(() => {})` false tolerance); full model mode requires a key but never prints it, and `--smoke` does not require one.
+
+### 8.2 Real logs and narrow cleanup (retained)
+
+web stdout/stderr genuinely written to `webLog`; on startup failure output the log tail; cleanup in `finally` (not relying on `process.on('exit')`); first terminate the exact child/process group normally, and only force-kill after a timeout; no broad `pkill`, and do not touch the user's existing 3080 listener; on failure retain/copy logs and screenshots to stable artifacts, and only clean the temp directory on success.
+
+### 8.3 Eliminating false action passes (retained)
+
+Before clicking, record the `data-chat-flow-key` of the last `[data-chat-flow-kind="assistant-step"]`; wait for the current assistant to finish (no `[data-streaming]`); click; a new assistant-step key must appear with the new node ending streaming, **or** a panel snapshot driven by a new operation source must appear; a button chip alone / the same DOM text changing does not count as a response; `pageerror`, a client.js 404, and a new-reply timeout all fail. git installation pins `--ref <full SHA>`.
+
+### 8.4 Two-layer E2E (retained)
+
+`--smoke` (every PR, no model quota: host binary, install, profile, home page 200, client.js 200, no page exceptions, plugin boot) + full E2E (manual release gate, protected key: model fence, UI, action message, real new assistant reply, panel update). Full E2E must test three paths against the same host SHA: link candidate, tarball + SHA256, git pinned plugin SHA. The tarball path carries the ordinary fence, Mermaid, scene3d, and real profile loading acceptance deferred after 7.2.
+
+### 8.5 CI matrix (softened)
+
+- Unified `DSH_ROOT` (CI computes a canonicalized absolute path before cloning; after checkout assert rev-parse equals the target SHA; `DSH_BIN` pinned to the built absolute path; vitest.config actually reads `process.env.DSH_ROOT`, using the local path only as a default; while stage 1 is unmerged, generate a run-only paths override under `/private/tmp`, never commit a machine absolute path; preflight with `test -f "$DSH_ROOT/packages/client/ui-primitives/src/index.ts"`).
+- **Default matrix** (not "must be two"): Node 22.19.x + minimum host SHA (minimum support line) + Node 24.x + current main (forward integration). Each matrix entry runs a frozen install, type check, full test suite, build, pack check, lib drift, and no-key smoke. The number of matrix entries is the release owner's default choice and may be added to or removed per the actual support surface.
+- If Billing is not restored, report honestly that "local and PR are complete, the remote release gate is blocked", without skipping and then claiming completion.
+
+### 8.6 Documentation fact corrections (retained)
+
+README: delete the "commit >= SHA" phrasing; write "requires a DSH version containing the stage 1 host commit `<SHA>`"; the history note points out that `0545fdcb` is the minimum for the old manifest contract but does not satisfy the FenceSource contract; delete the hard-coded "135 tests"; "the panel can grow without bound" → "the whole panel defaults to at most 200 nodes, and a replace should be sent once the cap is reached"; delete the outdated claim that git/link requires downloading Mermaid/Three/React; delete password teaching and add the secrets prohibition; update the E2E commands and the smoke/pinned-SHA explanation. CHANGELOG keeps historical numbers without fabricating them; SKILL.md and the system prompt stay in sync: stable panel semantics, node/operation cap defaults, password not persisted, replace after append reaches the cap.
+
+### 8.7 Release candidate (compatible tuple retained, numbers not locked)
+
+`HOST_SHA` (containing the stage 1 contract, already on a supported branch) + `PLUGIN_SHA` (containing version/changelog/lockfile/deterministic artifacts). Strict order: host contract lands on the supported branch first → plugin fully complete → version 0.4.0 finalized → rebuild and retest from a clean SHA → remote matrix → git path E2E → **stop at PR/candidate without authorization** → after merge, re-read the actual `PLUGIN_SHA_FINAL` and rerun all evidence → freeze the single release tuple → after authorization create the tag/Release → only after installing into a fresh `DSH_HOME` + exact `DSH_BIN` and validating does it become official. 0.3.x gets no retroactive historical tags. Both version numbers and numeric thresholds are defaults, aligned with release facts.
+
+**Release channel red line (user confirmed 2026-08-12)**: the host is still in its testing period, so **any public distribution channel such as npm/Workshop is entirely unavailable**—`npm publish` would make the plugin (and the existence of the host ecosystem) public, and is explicitly forbidden. `npm pack`/`verify-pack.mjs` only do local tarball verification and never publish. Distribution goes solely through a **private Git URL** (`git+ssh`, or a private registry to be confirmed separately by the release owner). Public docs shipped with the package, such as the README, must not contain host-internal information (host SHA, snapshot names, contract implementation details).
+
+---
+
+## 9. Difference table vs. the original plan
+
+| # | Original plan (rigid wording) | This plan (softened wording) | Rationale |
 |---|---|---|---|
-| 1 | "任何阶段都不得用随机 ID、内容哈希、时间戳、兼容层" | 按语义边界区分：身份必须"稳定 + 可区分"；哈希只能用于内容维度；兼容层只在契约升级期作为平滑路径 | 一刀切禁用会误伤正确用法（指纹本就是 stateKey 的内容维度） |
-| 2 | `FenceRenderer` 三参数必填、一次性切换 | 第三参数可选，插件侧有明确降级链 | 新插件 + 老宿主组合不崩，主仓与插件可独立发布 |
-| 3 | 面板"直接复用 maxNodes=200，不新增配置" | `PANEL_LIMITS` 独立表，默认 200，可解耦 | 合并后总量与单条预算语义不同，允许按证据调 |
-| 4 | 第 201 条 append / 201 节点：永远拒绝 | 拒绝 + barrier + replace 恢复路径 + 上限可配 | 上限是性能边界不是法律；恢复路径本来就存在 |
-| 5 | "不引入 LRU" | 拒绝而非 LRU 淘汰，写明语义理由（淘汰破坏确定性折叠） | 结论相同，但给的是理由不是禁令 |
-| 6 | 删除 password 能力 | 保留 masked 渲染；值不持久化、不进 submit fields；教学层禁秘密 | 不删除能力 = 不回退；封数据出口 = 安全边界 |
-| 7 | 固定 32 次 parse 上限 | `MAX_PARTIAL_REPAIR_ATTEMPTS` 默认 32，可配 | 性能边界可调 |
-| 8 | scene3d 删除门（使用为 0 + 产品确认） | 保留 scene3d，删除门是独立产品决策门，默认不启动 | 不回退已发布能力 |
-| 9 | pnpm@11.7.0 固定、失败即停 | packageManager 锁当前版本（corepack 惯例）+ engines 范围；失败给命令不自动改 | 工具链可升级，约定可执行 |
-| 10 | pack 阈值 <3MB/<10MB 写死 | 默认同值 + 环境变量覆盖 | 规模边界可配 |
-| 11 | CI 矩阵"设置两个阻塞矩阵" | 默认两矩阵，可按支持面调整 | 发布负责人的默认选择 |
-| 12 | "必须按阶段 0→6 串行推进，不得跨阶段并行修改同一核心文件" | 依赖关系保留，物理顺序放开：文件不相交的改动可并行；核心文件冲突矩阵约束 | 串行是项目管理偏好，不是设计正确性要求 |
+| 1 | "No random IDs, content hashes, timestamps, or compatibility layers at any stage" | Differentiate by semantic boundary: identity must be "stable + distinguishable"; hashes may be used only for the content dimension; a compatibility layer serves only as the smooth path during a contract upgrade | A blanket ban would damage correct usage (a fingerprint is by definition the content dimension of stateKey) |
+| 2 | `FenceRenderer` has three required parameters, switched all at once | The third parameter is optional, with an explicit degradation chain on the plugin side | New plugin + old host combinations do not crash, and the main repo and plugin can release independently |
+| 3 | Panel "reuses maxNodes=200 directly, no new config" | `PANEL_LIMITS` as an independent table, default 200, decouplable | The merged total and a single operation's budget have different semantics; tuning by evidence is allowed |
+| 4 | The 201st append / the 201st node: always rejected | Rejection + barrier + replace recovery path + configurable cap | A cap is a performance boundary, not law; the recovery path already exists |
+| 5 | "No LRU introduced" | Reject rather than LRU-evict, with the semantic reason stated (eviction breaks deterministic collapse) | Same conclusion, but it gives a reason rather than a prohibition |
+| 6 | Delete the password capability | Keep masked rendering; values are not persisted and do not enter submit fields; the teaching layer bans secrets | Not deleting a capability = no regression; sealing the data exit = safety boundary |
+| 7 | Fixed 32-parse cap | `MAX_PARTIAL_REPAIR_ATTEMPTS` defaults to 32, configurable | Performance boundaries are tunable |
+| 8 | scene3d deletion gate (usage is 0 + product confirmation) | Keep scene3d; the deletion gate is an independent product decision gate, not triggered by default | No regression of a shipped capability |
+| 9 | pnpm@11.7.0 pinned, fail immediately on mismatch | packageManager locks the current version (corepack convention) + engines range; on failure give the command without auto-changing anything | The toolchain can be upgraded, and the convention stays executable |
+| 10 | pack thresholds <3MB/<10MB hard-coded | Same defaults + environment-variable override | Scale boundaries are configurable |
+| 11 | CI matrix "set up two blocking matrices" | Two matrices by default, adjustable per the support surface | The release owner's default choice |
+| 12 | "Must proceed serially through stages 0→6, and must not modify the same core file in parallel across stages" | Dependencies retained, physical order relaxed: changes touching disjoint files may run in parallel; a core-file conflict matrix constrains the rest | Serial execution is a project-management preference, not a design-correctness requirement |
 
-**保持不变的部分**（根因修复，原方案正确）：panel operation Map + 三段排序 + 事务折叠；发布不进 render 函数；StrictMode 去重；`/panel` barrier；tabs 透传 answers；AnswerEntry.label 删除；字段不变量；三层 IME 保护；单次前向扫描 partial；事件驱动 3D；pointer capture；CSS 固定排序；src 直构建 + 声明 only；依赖归类；安装器七类目标安全失败；E2E 预检/真实日志/防假通过；文档事实修正；发布兼容元组与授权门。
-
----
-
-## 10. 交付顺序（按依赖，不强制物理串行）
-
-依赖关系（DAG）：
-
-```
-宿主 FenceSource 契约 ──► 插件面板操作模型 ──► 表单/状态/IME/敏感输入 ──► 解析/3D/指针 ──► 构建/包体/安装器 ──► E2E/CI/文档/发布
-```
-
-执行规则（替代"串行推进"）：
-
-1. **同文件冲突矩阵**：`GenuiBlock.tsx` 是表单阶段独占；`index.tsx`/`panel-store.ts`/`panel.tsx` 是面板阶段独占；`parse-partial.ts`/`scene3d-lazy.ts` 是性能阶段独占。任一时刻一个核心文件只有一个改动分支持有——这是防冲突的最小约束。
-2. **依赖性任务必须等上游**：面板模型依赖宿主契约落地（或按 3.3 降级链先行实现 + 老宿主测试，宿主合并后补全量测试——两条路都合法，写明即可）。
-3. 构建/包体/安装器与宿主无关，可与面板阶段并行。
-4. 每个阶段交付 = 定向测试 + 全量测试 + typecheck 绿 + 阶段验收命令绿，验收标准见第 11 节。
+**Parts that stay unchanged** (root-cause fixes, where the original plan was right): panel operation Map + three-part ordering + transactional collapse; publishing never inside a render function; StrictMode deduplication; `/panel` barrier; tabs passing through answers; deleting AnswerEntry.label; field invariants; three-layer IME protection; single forward-scan partial; event-driven 3D; pointer capture; fixed CSS ordering; direct src build + declarations only; dependency classification; installer safe failure across the seven target kinds; E2E preflight/real logs/false-pass prevention; documentation fact corrections; the release compatibility tuple and the authorization gate.
 
 ---
 
-## 11. 测试与验收（默认值 + 可配验证）
+## 10. Delivery order (by dependency, not forced physical serialization)
 
-沿用原计划全部测试用例清单（面板 append/重放/顺序/上限/StrictMode、状态隔离、IME、partial、3D、安装器、E2E 防假通过），并新增/替换：
+Dependencies (DAG):
 
-| 用例 | 断言 |
+```
+host FenceSource contract ──► plugin panel operation model ──► forms/state/IME/sensitive input ──► parsing/3D/pointers ──► build/package/installer ──► E2E/CI/docs/release
+```
+
+Execution rules (replacing "proceed serially"):
+
+1. **Same-file conflict matrix**: `GenuiBlock.tsx` is exclusively owned by the forms stage; `index.tsx`/`panel-store.ts`/`panel.tsx` are exclusively owned by the panel stage; `parse-partial.ts`/`scene3d-lazy.ts` are exclusively owned by the performance stage. At any moment a core file is held by only one change branch—this is the minimal anti-conflict constraint.
+2. **Dependent tasks must wait for upstream**: the panel model depends on the host contract landing (or implement the degradation chain from 3.3 first + old-host tests, then complete the full test suite after the host merges—both paths are legal, just write down which one).
+3. Build/package/installer are independent of the host and can run in parallel with the panel stage.
+4. Each stage delivery = targeted tests + full test suite + green typecheck + green stage acceptance command; acceptance criteria are in section 11.
+
+---
+
+## 11. Tests and acceptance (defaults + configurable verification)
+
+All test case lists from the original plan are carried over (panel append/replay/order/cap/StrictMode, state isolation, IME, partial, 3D, installer, E2E false-pass prevention), with the following added/replaced:
+
+| Case | Assertion |
 |---|---|
-| password 渲染 | masked input DOM 存在、非明文 |
-| password 持久化 | 刷新后值不恢复；localStorage 无该字段；submit payload 不含 password 字段 |
-| 无 context 老宿主 | 插件渲染 inline 不崩、不写面板、不写 localStorage |
-| 可配上限 | 注入 `PANEL_LIMITS` 测试值（如 maxNodes=5）后超限行为随配置变化 |
-| 同 order tie-break | 后到者胜，Map 按 sourceId 去重后无歧义 |
-| 事件驱动 3D | 初始化 render 一次、静置不增、drag/wheel 各一次 |
-| parse 上限可配 | 注入小上限后 parse 调用数 ≤ 完整 1 次 + 注入值 |
+| password rendering | masked input DOM exists, not plaintext |
+| password persistence | value not restored after refresh; localStorage has no such field; submit payload contains no password field |
+| old host without context | the plugin renders inline without crashing, writes no panel, writes no localStorage |
+| configurable cap | after injecting a `PANEL_LIMITS` test value (e.g. maxNodes=5), over-limit behavior follows the configuration |
+| same-order tie-break | later arrival wins; after Map deduplication by sourceId there is no ambiguity |
+| event-driven 3D | render once on init, no increase while idle, one each for drag/wheel |
+| configurable parse cap | after injecting a small cap, parse call count ≤ 1 full + the injected value |
 
-阶段门禁命令与 7.x 验收命令沿用原方案（`vitest run`、`tsc -b`、`tsdown`、`verify-pack.mjs`、lib drift、连续 5 次构建 SHA 一致），其中"pnpm 版本精确等于 11.7.0"改为"corepack pnpm --version 满足 engines 范围"。
+Stage gate commands and 7.x acceptance commands follow the original plan (`vitest run`, `tsc -b`, `tsdown`, `verify-pack.mjs`, lib drift, 5 consecutive builds with identical SHA), with "pnpm version exactly equals 11.7.0" changed to "corepack pnpm --version satisfies the engines range".
 
-## 12. 不回退清单（验收时逐项勾选）
+## 12. No-regression checklist (tick each item at acceptance)
 
-- [ ] `scene3d` 渲染、拖拽、缩放、dispose 全部保留，仅去掉永久 RAF
-- [ ] 38 个组件类型、guard 白名单、gallery 统计一个不删
-- [ ] append 面板（tabs 按标签合并、尾部追加）语义保留
-- [ ] 本地判卷（submit 就地判分、锁定、重新作答）保留
-- [ ] durable 持久化（同内容恢复、换内容清空）保留，password 除外
-- [ ] `/panel`、`/panel clear`、`/panel <指令>` 保留
-- [ ] v1/v2/v2.5/v2.6/v2.7 既有测试全部保留并保持绿
-- [ ] 现有 208+ 测试一个不删（只增改断言错误的旧预期，如 Infinity 永远胜）
-- [ ] 安装仍只走 bundle（`cordis.patch.yml` 只 insert 一次自己，profile patch 保持 `[]`）
-- [ ] 不触碰活跃 3080 服务与用户浏览器（E2E 全部隔离环境）
-- [ ] 发布未获授权前停在 PR/候选，不合并、不打 tag、不发布
+- [ ] `scene3d` rendering, drag, zoom, and dispose are all retained; only the permanent RAF is removed
+- [ ] 38 component types, the guard allowlist, and the gallery count are not reduced by a single item
+- [ ] append panel semantics (tabs merged by label, tail append) retained
+- [ ] local grading (submit grades in place, lock, re-answer) retained
+- [ ] durable persistence (restore on same content, clear on content change) retained, except for password
+- [ ] `/panel`, `/panel clear`, `/panel <instruction>` retained
+- [ ] all existing v1/v2/v2.5/v2.6/v2.7 tests retained and kept green
+- [ ] no existing 208+ tests deleted (only add or fix assertions for wrong old expectations, such as Infinity always winning)
+- [ ] installation still goes only through the bundle (`cordis.patch.yml` inserts itself only once, the profile patch stays `[]`)
+- [ ] do not touch the active 3080 service or the user's browser (E2E runs entirely in isolated environments)
+- [ ] without release authorization, stop at PR/candidate: do not merge, do not tag, do not publish
 
 ---
 
-## 13. 一句话总结
+## 13. One-line summary
 
-> 审计发现的根因一个不少地修；**安全边界不可配，规模/性能边界集中可配，语义边界按场景写明**；能力只降级不删除，行为只收紧不回退；阶段按依赖推进但不强制串行。原计划的"禁止方案"章节全部改写为"理由 + 默认值 + 调整路径"。
+> Fix every root cause the audit found, not one short; **safety boundaries are not configurable, scale/performance boundaries are centrally configurable, semantic boundaries are stated per scenario**; capabilities are only degraded, never deleted, and behavior is only tightened, never rolled back; stages advance by dependency without forced serialization. Every "prohibited approaches" section of the original plan is rewritten as "rationale + defaults + adjustment path".

@@ -30,25 +30,25 @@ export function assertSafeSvg(svg: string): void {
  *   ```dsh-ui style fences, which break the parser with "Lexical error");
  * - strip `<br/>` tags, which require htmlLabels (never enabled here);
  * - quote unquoted node labels containing CJK, spaces, or other characters
- *   mermaid's bare-label grammar rejects (observed live: `A[模型生成 spec]`).
+ *   mermaid's bare-label grammar rejects (observed live: `A[\u6a21\u578b\u751f\u6210 spec]`).
  * Conservative by design: already-quoted labels, plain ASCII labels without
  * spaces, and non-flowchart kinds are left untouched (apart from the
  * backtick/`<br/>` sanitation above, which is harmless everywhere in a
  * flowchart).
  *
- * Labeled-edge spans (`-- 文本 -->`, `== 文本 ==>`, `-. 文本 .->`) are free
+ * Labeled-edge spans (`-- \u6587\u672c -->`, `== \u6587\u672c ==>`, `-. \u6587\u672c .->`) are free
  * text and must never be quoted: wrapping them breaks the parser
  * ("Expecting 'LINK' … got 'STR'"), observed live with
- * `H -- 否(流式中) --> J`. Each span is swapped for a bracket-free
+ * `H -- \u5426(\u6d41\u5f0f\u4e2d) --> J`. Each span is swapped for a bracket-free
  * placeholder before quoting and restored verbatim afterwards, so the quote
  * pass can neither corrupt it nor be thrown off by inserted quotes
  * elsewhere on the line.
  *
- * Pipe-style edge labels (`-->|文本|`) are the opposite: an UNQUOTED pipe
+ * Pipe-style edge labels (`-->|\u6587\u672c|`) are the opposite: an UNQUOTED pipe
  * label containing `[` or `]` breaks the parser ("Parse error", observed
- * live with `-->|6. 用户交互 → [genui-action]|`) because the brackets are
+ * live with `-->|6. \u7528\u6237\u4ea4\u4e92 \u2192 [genui-action]|`) because the brackets are
  * node grammar. Quoting the label text is display-neutral (mermaid renders
- * `-->|"文本"|` without the quotes) and parses. These spans are masked too,
+ * `-->|"\u6587\u672c"|` without the quotes) and parses. These spans are masked too,
  * so the node-label quote pass below cannot reach inside them and produce
  * nested quotes, and restored last.
  */

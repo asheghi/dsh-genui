@@ -11,15 +11,15 @@ afterEach(cleanup)
 describe('plot y-axis lock', () => {
   it('keeps y ticks stable while the curve changes on slider drag', () => {
     const { container } = render(<PlotBlock series={[
-      { expr: 'a*x', label: '直线', params: [{ name: 'a', value: 1, min: 0, max: 5 }] },
+      { expr: 'a*x', label: 'line', params: [{ name: 'a', value: 1, min: 0, max: 5 }] },
     ]} />)
-    // y 轴刻度（拖动前后应一致）
+    // y-axis ticks (identical before and after the drag)
     const yTicksBefore = [...container.querySelectorAll('g')]
       .map(g => g.querySelector('text')?.textContent)
       .filter(Boolean)
       .filter(t => !t!.includes('.'))
     const polyBefore = container.querySelector('polyline')!.getAttribute('points')!
-    // 拖动滑块 a: 1 -> 3
+    // drag slider a: 1 -> 3
     const slider = container.querySelector('input[type="range"]') as HTMLInputElement
     fireEvent.change(slider, { target: { value: '3' } })
     const yTicksAfter = [...container.querySelectorAll('g')]
@@ -27,9 +27,9 @@ describe('plot y-axis lock', () => {
       .filter(Boolean)
       .filter(t => !t!.includes('.'))
     const polyAfter = container.querySelector('polyline')!.getAttribute('points')!
-    // 数轴刻度不变（y 轴锁定）
+    // axis ticks unchanged (y axis locked)
     expect(yTicksAfter).toEqual(yTicksBefore)
-    // 曲线坐标变化（形态变了）
+    // curve coordinates changed (the shape moved)
     expect(polyAfter).not.toBe(polyBefore)
   })
 })

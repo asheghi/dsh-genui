@@ -88,7 +88,8 @@ jobs:
             fi
           fi
 
-      # 固定标签的宿主用于 packed e2e；API 检查单独安装发布包类型声明。
+      # The pinned host serves the packed e2e; the API check installs published
+      # package type declarations separately.
       - name: Clone DSH host
         shell: bash
         run: |

@@ -1,4 +1,4 @@
-/** standalone 页面使用的基础颜色和版面样式。 */
+/** Base colors and layout styles used by the standalone page. */
 export const STANDALONE_THEME_CSS = `
 :root {
   color-scheme: light;
@@ -27,7 +27,7 @@ export const STANDALONE_THEME_CSS = `
   --dsw-alias-label-caption: var(--dsw-static-neutral-bluish-400);
   --dsw-alias-markdown-code-block: var(--dsw-static-neutral-bluish-50);
   --dsw-alias-markdown-hr: #cbd5e1;
-  /* DSH 静态调色板供语义状态别名使用。 */
+  /* DSH static palette backing the semantic state aliases. */
   --dsw-static-deepseek-100: rgb(228, 237, 253);
   --dsw-static-deepseek-400: rgb(122, 170, 255);
   --dsw-static-deepseek-500: rgb(65, 118, 230);
@@ -44,7 +44,7 @@ export const STANDALONE_THEME_CSS = `
   --dsw-static-red-400: rgb(242, 90, 90);
   --dsw-static-red-600: rgb(236, 19, 19);
 
-  /* DSH 浅色主题语义状态别名。 */
+  /* DSH light theme semantic state aliases. */
   --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
   --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
   --dsw-alias-state-success-primary: var(--dsw-static-green-500);
@@ -75,7 +75,7 @@ body[data-ds-dark-theme] {
   --dsw-alias-label-caption: var(--dsw-static-neutral-bluish-600);
   --dsw-alias-markdown-code-block: var(--dsw-static-neutral-bluish-900);
   --dsw-alias-markdown-hr: #465365;
-  /* DSH 深色主题语义状态别名。 */
+  /* DSH dark theme semantic state aliases. */
   --dsw-alias-state-business-primary: var(--dsw-static-deepseek-400);
   --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-800);
   --dsw-alias-state-success-primary: var(--dsw-static-green-500);

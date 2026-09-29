@@ -33,29 +33,29 @@ describe.skipIf(!hasFenceRegistry)('input durable value priority', () => {
     const stateKey = 'input-durable-value-priority'
     const spec = {
       items: [
-        { type: 'input', label: '名称', id: 'name', value: '默认值' },
-        { type: 'submit', label: '发送', action: 'send' },
+        { type: 'input', label: 'Name', id: 'name', value: 'default value' },
+        { type: 'submit', label: 'Send', action: 'send' },
       ],
     }
     const onAction = vi.fn()
 
     renderBlock(spec, stateKey, onAction)
     const input = screen.getByRole('textbox') as HTMLInputElement
-    expect(input.value).toBe('默认值')
+    expect(input.value).toBe('default value')
 
-    fireEvent.change(input, { target: { value: '用户值' } })
+    fireEvent.change(input, { target: { value: 'user value' } })
     vi.advanceTimersByTime(400)
 
     cleanup()
     renderBlock(spec, stateKey, onAction)
 
     const restored = screen.getByRole('textbox') as HTMLInputElement
-    expect(restored.value).toBe('用户值')
+    expect(restored.value).toBe('user value')
 
-    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({
-      fields: { name: '用户值' },
+      fields: { name: 'user value' },
     }))
   })
 })

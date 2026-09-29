@@ -14,35 +14,35 @@ function fenceSpec(raw: string): ReturnType<typeof resolveGenuiSpec> {
 
 describe('partial fence rendering (issue #186)', () => {
   it('keeps the strict gate strict for diagnostics and tools', () => {
-    const raw = '{"items":[{"type":"stat","label":42,"value":"1/5"},{"type":"callout","content":"说明"}]}'
+    const raw = '{"items":[{"type":"stat","label":42,"value":"1/5"},{"type":"callout","content":"caption"}]}'
     const processed = processGenuiSpec(JSON.parse(raw))
     expect(isRenderableProcess(processed)).toBe(false)
     expect(processed.errors.join('\n')).toContain('stat')
   })
 
   it('drops one bad node and renders the surviving siblings', () => {
-    const raw = '{"title":"进度","items":[{"type":"stat","label":42,"value":"1/5"},{"type":"callout","content":"说明"}]}'
+    const raw = '{"title":"Progress","items":[{"type":"stat","label":42,"value":"1/5"},{"type":"callout","content":"caption"}]}'
     const spec = fenceSpec(raw)
     expect(spec).not.toBeNull()
-    expect(spec!.items).toEqual([{ type: 'callout', content: '说明' }])
+    expect(spec!.items).toEqual([{ type: 'callout', content: 'caption' }])
   })
 
   it('drops an undrawable chart instead of repairing it into a blank canvas', () => {
-    const raw = '{"items":[{"type":"chart","kind":"line","data":[]},{"type":"text","content":"结论"}]}'
+    const raw = '{"items":[{"type":"chart","kind":"line","data":[]},{"type":"text","content":"conclusion"}]}'
     const processed = processGenuiSpec(JSON.parse(raw))
     expect(isRenderableProcess(processed)).toBe(false)
     const spec = fenceSpec(raw)
     expect(spec).not.toBeNull()
-    expect(spec!.items).toEqual([{ type: 'text', content: '结论' }])
+    expect(spec!.items).toEqual([{ type: 'text', content: 'conclusion' }])
   })
 
   it('prunes a bad nested node and keeps its container siblings', () => {
-    const raw = '{"items":[{"type":"col","items":[{"type":"stat","label":"a","value":"1"},{"type":"progress","value":200}]},{"type":"text","content":"尾注"}]}'
+    const raw = '{"items":[{"type":"col","items":[{"type":"stat","label":"a","value":"1"},{"type":"progress","value":200}]},{"type":"text","content":"footnote"}]}'
     const spec = fenceSpec(raw)
     expect(spec).not.toBeNull()
     expect(spec!.items).toEqual([
       { type: 'col', items: [{ type: 'stat', label: 'a', value: '1' }] },
-      { type: 'text', content: '尾注' },
+      { type: 'text', content: 'footnote' },
     ])
   })
 
@@ -56,7 +56,7 @@ describe('partial fence rendering (issue #186)', () => {
   })
 
   it('passes a clean spec through untouched', () => {
-    const raw = '{"items":[{"type":"text","content":"好"}]}'
+    const raw = '{"items":[{"type":"text","content":"ok"}]}'
     expect(partialRepairGenuiSpec(processGenuiSpec(JSON.parse(raw)))).toEqual(fenceSpec(raw))
   })
 })

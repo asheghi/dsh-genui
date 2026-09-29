@@ -58,7 +58,7 @@ describe('standalone HTML serialization', () => {
   })
 
   it('preserves UTF-8 artifact content', () => {
-    const artifact = createGenuiArtifact({ title: '服务状态', items: [{ type: 'text', content: '正常运行' }] })
+    const artifact = createGenuiArtifact({ title: '\u670d\u52a1\u72b6\u6001', items: [{ type: 'text', content: '\u6b63\u5e38\u8fd0\u884c' }] })
     const html = createStandaloneHtmlDocument(artifact, new Map([
       ['standalone-runtime.js', new TextEncoder().encode('runtime')],
     ]))

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Table smart-sort / numeric alignment / chart polish / live-region a11y.
 // The sortable-table upgrade (0.9): human-written cells like `1,234`, `1.2k`,
-// `3.5万`, `0.3%`, `¥99` compare as real numbers instead of strings, numeric
+// `3.5\u4e07` (35k), `0.3%`, `¥99` compare as real numbers instead of strings, numeric
 // columns right-align, and the button/copy confirmations announce via hidden
 // live regions (button content is atomic to screen readers).
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
@@ -31,15 +31,15 @@ describe('parseSortableNumber', () => {
   })
   it('strips thousands separators (ASCII and full-width)', () => {
     expect(parseSortableNumber('1,234')).toBe(1234)
-    expect(parseSortableNumber('1，234')).toBe(1234)
+    expect(parseSortableNumber('1\uff0c234')).toBe(1234)
     expect(parseSortableNumber('1,299.5')).toBe(1299.5)
   })
-  it('expands k/m/b suffixes and 万/亿', () => {
+  it('expands k/m/b suffixes and \u4e07/\u4ebf', () => {
     expect(parseSortableNumber('1.2k')).toBe(1200)
     expect(parseSortableNumber('3M')).toBe(3_000_000)
     expect(parseSortableNumber('2b')).toBe(2_000_000_000)
-    expect(parseSortableNumber('3.5万')).toBe(35_000)
-    expect(parseSortableNumber('2亿')).toBe(200_000_000)
+    expect(parseSortableNumber('3.5\u4e07')).toBe(35_000)
+    expect(parseSortableNumber('2\u4ebf')).toBe(200_000_000)
   })
   it('handles percent and currency decorations', () => {
     expect(parseSortableNumber('0.3%')).toBe(0.3)
@@ -56,18 +56,18 @@ describe('parseSortableNumber', () => {
 
 describe('table smart sorting', () => {
   it('orders decorated values numerically, not lexically', () => {
-    const container = renderBlock([{ type: 'table', columns: ['名称', '数量'], rows: [
-      ['A', '1.2k'], ['B', '950'], ['C', '1,100'], ['D', '3万'],
+    const container = renderBlock([{ type: 'table', columns: ['Name', 'Count'], rows: [
+      ['A', '1.2k'], ['B', '950'], ['C', '1,100'], ['D', '3\u4e07'],
     ] }])
     const header = container.querySelectorAll('thead th button')[1]!
     fireEvent.click(header)
-    // 950 < 1,100 < 1.2k < 3万
-    expect(bodyRows(container)).toEqual(['B950', 'C1,100', 'A1.2k', 'D3万'])
+    // 950 < 1,100 < 1.2k < 3\u4e07
+    expect(bodyRows(container)).toEqual(['B950', 'C1,100', 'A1.2k', 'D3\u4e07'])
     expect(header.closest('th')!.getAttribute('aria-sort')).toBe('ascending')
   })
 
   it('keeps mixed columns deterministic: numbers first, then text', () => {
-    const container = renderBlock([{ type: 'table', columns: ['名称', '列'], rows: [
+    const container = renderBlock([{ type: 'table', columns: ['Name', 'Value'], rows: [
       ['A', '10'], ['B', 'x'], ['C', '5'],
     ] }])
     const header = container.querySelectorAll('thead th button')[1]!
@@ -76,18 +76,18 @@ describe('table smart sorting', () => {
   })
 
   it('sorts percentages as numbers across a boundary (9.9% < 10%)', () => {
-    const container = renderBlock([{ type: 'table', columns: ['月', '率'], rows: [
-      ['一月', '9.9%'], ['二月', '10%'],
+    const container = renderBlock([{ type: 'table', columns: ['Month', 'Rate'], rows: [
+      ['January', '9.9%'], ['February', '10%'],
     ] }])
     const header = container.querySelectorAll('thead th button')[1]!
     fireEvent.click(header)
-    expect(bodyRows(container)).toEqual(['一月9.9%', '二月10%'])
+    expect(bodyRows(container)).toEqual(['January9.9%', 'February10%'])
   })
 })
 
 describe('table numeric column alignment', () => {
   it('right-aligns fully numeric columns and leaves text columns alone', () => {
-    const container = renderBlock([{ type: 'table', columns: ['名称', '数量'], rows: [
+    const container = renderBlock([{ type: 'table', columns: ['Name', 'Count'], rows: [
       ['A', '1.2k'], ['B', '950'],
     ] }])
     const rows = container.querySelectorAll('tbody tr')
@@ -100,7 +100,7 @@ describe('table numeric column alignment', () => {
   })
 
   it('treats a column with any non-numeric cell as text', () => {
-    const container = renderBlock([{ type: 'table', columns: ['名称', '列'], rows: [
+    const container = renderBlock([{ type: 'table', columns: ['Name', 'Value'], rows: [
       ['A', '10'], ['B', 'x'],
     ] }])
     const cell = container.querySelectorAll('tbody tr')[0]!.querySelectorAll('td')[1]!
@@ -135,14 +135,14 @@ describe('live-region confirmations (a11y)', () => {
     return () => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: original })
   }
 
-  it('announces 已复制 to clipboard through a hidden status region', async () => {
+  it('announces copied-to-clipboard through a hidden status region', async () => {
     const restore = mockClipboard({ writeText: vi.fn().mockResolvedValue(undefined) })
     try {
-      const container = renderBlock([{ type: 'copy', label: '复制', text: 'xyz' }])
+      const container = renderBlock([{ type: 'copy', label: 'Copy', text: 'xyz' }])
       fireEvent.click(container.querySelector('button')!)
       const status = container.querySelector('[role="status"]')
       expect(status).not.toBeNull()
-      await waitFor(() => expect(status!.textContent).toBe('已复制到剪贴板'))
+      await waitFor(() => expect(status!.textContent).toBe('Copied to clipboard'))
       // visually hidden, not merely display-less
       expect((status! as HTMLElement).className).toContain('visuallyHidden')
     } finally {
@@ -156,10 +156,10 @@ describe('live-region confirmations (a11y)', () => {
     const exec = vi.fn().mockImplementation(() => document.querySelector('textarea')?.value === 'xyz')
     Object.defineProperty(document, 'execCommand', { configurable: true, value: exec })
     try {
-      const container = renderBlock([{ type: 'copy', label: '复制', text: 'xyz' }])
+      const container = renderBlock([{ type: 'copy', label: 'Copy', text: 'xyz' }])
       const button = container.querySelector('button')!
       fireEvent.click(button)
-      await waitFor(() => expect(button.textContent).toBe('✓ 已复制'))
+      await waitFor(() => expect(button.textContent).toBe('✓ Copied'))
       expect(exec).toHaveBeenCalledWith('copy')
       expect(document.querySelector('textarea')).toBeNull()
     } finally {
@@ -172,23 +172,23 @@ describe('live-region confirmations (a11y)', () => {
   it('does NOT announce success when the clipboard write fails', async () => {
     const restore = mockClipboard({ writeText: vi.fn().mockRejectedValue(new Error('NotAllowedError')) })
     try {
-      const container = renderBlock([{ type: 'copy', label: '复制', text: 'xyz' }])
+      const container = renderBlock([{ type: 'copy', label: 'Copy', text: 'xyz' }])
       const button = container.querySelector('button')!
       fireEvent.click(button)
       // flush the async write; a rejected write must not fake success
       await new Promise((r) => setTimeout(r, 0))
-      expect(button.textContent).toBe('复制')
+      expect(button.textContent).toBe('Copy')
       expect(container.querySelector('[role="status"]')!.textContent).toBe('')
     } finally {
       restore()
     }
   })
 
-  it('announces 已触发 next to an actionable button', () => {
+  it('announces a sent confirmation next to an actionable button', () => {
     vi.useFakeTimers()
     try {
       const actions: Array<[string, Record<string, unknown>]> = []
-      const spec = repairGenuiSpec({ items: [{ type: 'button', label: '刷新', action: 'refresh' }] })!
+      const spec = repairGenuiSpec({ items: [{ type: 'button', label: 'Refresh', action: 'refresh' }] })!
       const { container } = render(
         <GenuiActionContext.Provider value={(action, payload) => { actions.push([action, payload]) }}>
           <GenuiBlock spec={spec} />
@@ -198,8 +198,8 @@ describe('live-region confirmations (a11y)', () => {
       // the block-level action debounce (300ms) delivers the action
       act(() => { vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS) })
       expect(actions).toHaveLength(1)
-      expect(container.querySelector('[role="status"]')!.textContent).toBe('已触发')
-      expect(container.querySelector('button')!.textContent).toContain('已触发')
+      expect(container.querySelector('[role="status"]')!.textContent).toBe('Sent')
+      expect(container.querySelector('button')!.textContent).toContain('✓ Sent')
     } finally {
       vi.useRealTimers()
     }

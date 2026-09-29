@@ -731,9 +731,11 @@ function repairStrings(v: unknown, cap: number, strCap: number): string[] | unde
     if (typeof item === 'string') {
       out.push(item.slice(0, strCap))
     } else if (item !== null && typeof item === 'object') {
-      // 兼容模型误用对象数组（如把 ask_user_question 的 {label,description}
-      // 格式错用到 select/radio 的 options）——提取可读字段，而不是静默丢
-      // 掉整个选项，让用户看到「选项没列举出来」的空列表。
+      // Tolerate a model misusing an array of objects (e.g. applying
+      // ask_user_question's {label,description} shape to select/radio options)
+      // — extract a readable field instead of silently dropping the whole
+      // option, which would leave the user staring at an empty "no options
+      // listed" list.
       const o = item as Record<string, unknown>
       const s = typeof o.label === 'string' ? o.label
         : typeof o.value === 'string' ? o.value
@@ -798,7 +800,7 @@ function repairRows(v: unknown, rowCap: number, colCap: number): Array<Array<str
 
 /** Left-aligned, undecorated columns for a table whose rows came without one. */
 function derivedColumnNames(count: number): string[] {
-  return Array.from({ length: count }, (_unused, index) => `列${index + 1}`)
+  return Array.from({ length: count }, (_unused, index) => `Column ${index + 1}`)
 }
 
 /**
@@ -1228,7 +1230,7 @@ interface EChartSanitizeBudget { count: number }
  * HTML/script injection patterns in strings) but preserves the object shape
  * ECharts needs. Scalars are KEPT: ECharts options are full of them,
  * including inside `data` arrays (`data: [120, 150, 180]`,
- * `xAxis.data: ['1月', '2月']`). Previously a scalar hit the plain-object
+ * `xAxis.data: ['Jan', 'Feb']`). Previously a scalar hit the plain-object
  * gate below and returned undefined, so every primitive-valued array was
  * filtered to empty and dropped — a chart with a full `option` rendered
  * with empty series (blank canvas). This is a safety walk, not an ECharts
@@ -1486,8 +1488,8 @@ export function validateGenuiChartSemantics(value: unknown): string[] {
  * custom type is valid only when a renderer is registered — the guard cannot
  * know, so it flags them as warnings).
  *
- * @param value - 未经过别名转换的 GenUI 文档。
- * @returns 完整结构与字段校验结果。
+ * @param value - a GenUI document before alias conversion.
+ * @returns the complete structure and field validation result.
  */
 export function validateCanonicalGenuiSpec(value: unknown): GenuiValidation {
   const errors: string[] = []
@@ -1666,7 +1668,8 @@ function cloneJsonValue(value: unknown): Record<string, unknown> | null {
  *
  * The fence channels call this after the strict gate refuses, so ONE bad
  * component no longer degrades the whole fence to a code block — the
- * behaviour the capability map documents ("坏节点静默丢弃…不会拖垮界面") and
+ * behaviour the capability map documents ("bad nodes are silently dropped… they
+ * never drag the UI down") and
  * that validate_dsh_ui keeps diagnosing for the model. Bounded to a single
  * retry: a second failing pass is a genuinely pathological tree and keeps
  * today's full-fence fallback. Chart semantics stay protected the same way —

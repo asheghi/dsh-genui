@@ -30,16 +30,16 @@ describe('SKILL.md examples', () => {
     expect(good.length).toBeGreaterThanOrEqual(5)
     expect(bad.length).toBeGreaterThanOrEqual(1)
     // Without a no-component example a model learns "always emit something".
-    expect(skill).toContain('正确地不套组件')
+    expect(skill).toContain('correctly skipping components')
   })
 
   it('keeps user-visible example values language-neutral', () => {
     expect(skill).toContain('never emit these placeholders literally')
     expect(skill).toContain('"title":"<user-language text>"')
-    expect(skill).not.toContain('"title":"可选标题"')
-    expect(skill).not.toContain('"label":"已合并"')
-    expect(skill).not.toContain('"columns":["方案","代价","判断"]')
-    expect(skill).not.toContain('"label":"本周"')
+    expect(skill).not.toContain('"title":"Optional title"')
+    expect(skill).not.toContain('"label":"Merged"')
+    expect(skill).not.toContain('"columns":["Option","Cost","Verdict"]')
+    expect(skill).not.toContain('"label":"This week"')
   })
 
   for (const [i, raw] of good.entries()) {

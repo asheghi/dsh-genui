@@ -1,8 +1,8 @@
 // SKILL.md frontmatter regression gate: the skill catalog silently IGNORES a
 // skill whose YAML frontmatter fails to parse (the harness's yaml parser, not
 // ours). The genui description historically contained `: ` sequences
-// ("charts: callouts", "prose: 要点") which the parser rejects as compact
-// nested mappings — the skill was invisible from install until quoted.
+// ("charts: callouts", "prose: key points") which the parser rejects as
+// compact nested mappings — the skill was invisible from install until quoted.
 // This test pins the file against the SAME parser the host uses.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -38,6 +38,6 @@ describe('SKILL.md frontmatter (host yaml parser)', () => {
     expect(typeof data.description).toBe('string')
     expect((data.description as string).length).toBeGreaterThan(20)
     expect(data.description).toContain('Preserve conversation language')
-    expect(data.description).not.toMatch(/[\u3400-\u9fff]/u)
+    expect(data.description).not.toMatch(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/u)
   })
 })

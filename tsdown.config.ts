@@ -124,7 +124,7 @@ function standaloneKatexCssPlugin(): NonNullable<UserConfig['plugins']>[number] 
         analyzeDependencies: true,
         visitor: {
           Rule: {
-            /** 独立 HTML 面向支持 WOFF2 的浏览器，每种字体只需内嵌一份。 */
+            /** The standalone HTML targets WOFF2-capable browsers; each font needs only one embed. */
             'font-face'(rule) {
               const source = rule.value.properties.find(property => property.type === 'source')
               if (source === undefined) throw new Error('KaTeX font face has no source')

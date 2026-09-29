@@ -359,10 +359,10 @@ export const PlotBlock = memo(function PlotBlock({
           <span className={css.plotHint}>
             {viewMoved
               ? `x ∈ [${formatTick(xMin)}, ${formatTick(xMax)}]`
-              : '⌘/Ctrl + 滚轮缩放 · 拖拽平移'}
+              : '⌘/Ctrl + scroll to zoom · drag to pan'}
           </span>
           {viewMoved && (
-            <button type="button" className={css.plotReset} onClick={resetView}>↺ 回到初始区间</button>
+            <button type="button" className={css.plotReset} onClick={resetView}>↺ Reset</button>
           )}
         </div>
       )}
@@ -401,13 +401,13 @@ export const PlotBlock = memo(function PlotBlock({
         </svg>
       ) : (
         <div className={css.empty}>
-          {series.map((s, i) => <div key={i} className={css.emptyRow}>{s.expr} — 无法绘制（表达式无效或范围非法）</div>)}
+          {series.map((s, i) => <div key={i} className={css.emptyRow}>{s.expr} — cannot plot (invalid expression or illegal range)</div>)}
         </div>
       )}
       {hasParams && (
         <div className={css.sliders}>
           <div className={css.slidersHead}>
-            <span className={css.slidersTitle}>参数调节</span>
+            <span className={css.slidersTitle}>Parameters</span>
             <button
               type="button"
               className={css.resetBtn}
@@ -423,7 +423,7 @@ export const PlotBlock = memo(function PlotBlock({
                 setAnimProgress(0)
               }}
             >
-              ↺ 重置
+              ↺ Reset
             </button>
           </div>
           {series.map((s, si) => (s.params ?? []).map(p => {
@@ -468,7 +468,7 @@ export const PlotBlock = memo(function PlotBlock({
               }
             }}
           >
-            {playing ? '⏸ 暂停' : '▶ 播放动画'}
+            {playing ? '⏸ Pause' : '▶ Play animation'}
           </button>
           {playing && (
             <div className={css.animTrack}>

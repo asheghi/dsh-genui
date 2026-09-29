@@ -24,7 +24,7 @@ describe.skipIf(!hasFenceRegistry)('chart variants', () => {
   it('renders a line chart', () => {
     render(<MarkdownText text={fenced({ items: [
       { type: 'chart', kind: 'line', data: [
-        { label: '一', value: 10 }, { label: '二', value: 20 }, { label: '三', value: 15 },
+        { label: 'One', value: 10 }, { label: 'Two', value: 20 }, { label: 'Three', value: 15 },
       ] },
     ] })} />)
     expect(document.querySelector('svg path')).not.toBeNull()
@@ -43,8 +43,8 @@ describe.skipIf(!hasFenceRegistry)('chart variants', () => {
   it('renders grouped bars from series', () => {
     render(<MarkdownText text={fenced({ items: [
       { type: 'chart', series: [
-        { label: '本月', color: '#6ea8ff', data: [{ label: 'Q1', value: 3 }, { label: 'Q2', value: 5 }] },
-        { label: '上月', color: '#34d399', data: [{ label: 'Q1', value: 2 }, { label: 'Q2', value: 4 }] },
+        { label: 'This month', color: '#6ea8ff', data: [{ label: 'Q1', value: 3 }, { label: 'Q2', value: 5 }] },
+        { label: 'Last month', color: '#34d399', data: [{ label: 'Q1', value: 2 }, { label: 'Q2', value: 4 }] },
       ] },
     ] })} />)
     expect(document.querySelectorAll('[class*="groupedFill"]').length).toBe(4)
@@ -54,7 +54,7 @@ describe.skipIf(!hasFenceRegistry)('chart variants', () => {
 describe.skipIf(!hasFenceRegistry)('interactive controls', () => {
   it('renders a radio group with local selection', () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'radio', label: '主题', options: ['浅色', '深色', '跟随系统'] },
+      { type: 'radio', label: 'Theme', options: ['Light', 'Dark', 'System'] },
     ] })} />)
     expect(screen.getByRole('radiogroup')).toBeTruthy()
     const radios = screen.getAllByRole('radio')
@@ -65,7 +65,7 @@ describe.skipIf(!hasFenceRegistry)('interactive controls', () => {
 
   it('renders a switch and toggles it', () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'switch', label: '自动保存', checked: true },
+      { type: 'switch', label: 'Autosave', checked: true },
     ] })} />)
     const sw = screen.getByRole('switch')
     expect(sw.getAttribute('aria-checked')).toBe('true')
@@ -75,7 +75,7 @@ describe.skipIf(!hasFenceRegistry)('interactive controls', () => {
 
   it('renders a textarea', () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'textarea', label: '备注', placeholder: '输入…', rows: 3 },
+      { type: 'textarea', label: 'Notes', placeholder: 'Type…', rows: 3 },
     ] })} />)
     const ta = document.querySelector('textarea')
     expect(ta).not.toBeNull()
@@ -85,46 +85,46 @@ describe.skipIf(!hasFenceRegistry)('interactive controls', () => {
   it('renders an accordion and expands items', () => {
     render(<MarkdownText text={fenced({ items: [
       { type: 'accordion', items: [
-        { title: '基础信息', items: [{ type: 'text', content: '内部内容' }] },
-        { title: '高级', items: [{ type: 'text', content: '高级选项' }] },
+        { title: 'Basics', items: [{ type: 'text', content: 'Inner content' }] },
+        { title: 'Advanced', items: [{ type: 'text', content: 'Advanced options' }] },
       ] },
     ] })} />)
-    expect(screen.getByText('基础信息')).toBeTruthy()
-    expect(screen.getByText('内部内容')).toBeTruthy() // first open by default
-    expect(document.body.textContent).not.toContain('高级选项')
-    fireEvent.click(screen.getByText('高级'))
-    expect(screen.getByText('高级选项')).toBeTruthy()
+    expect(screen.getByText('Basics')).toBeTruthy()
+    expect(screen.getByText('Inner content')).toBeTruthy() // first open by default
+    expect(document.body.textContent).not.toContain('Advanced options')
+    fireEvent.click(screen.getByText('Advanced'))
+    expect(screen.getByText('Advanced options')).toBeTruthy()
   })
 
   it('renders a copy chip', () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'copy', label: '复制命令', text: 'pnpm build' },
+      { type: 'copy', label: 'Copy command', text: 'pnpm build' },
     ] })} />)
-    expect(screen.getByRole('button', { name: '复制命令' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Copy command' })).toBeTruthy()
   })
 })
 
 describe.skipIf(!hasFenceRegistry)('lazy advanced components', () => {
   it('renders a mermaid node with fallback while loading', async () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'mermaid', code: 'graph TD\nA[开始] --> B[结束]' },
+      { type: 'mermaid', code: 'graph TD\nA[Start] --> B[End]' },
     ] })} />)
     // Either the rendered diagram or the loading fallback appears synchronously.
-    const hasFallback = document.body.textContent?.includes('渲染中') === true
+    const hasFallback = document.body.textContent?.includes('Rendering') === true
     expect(document.body.textContent).toContain('graph TD')
     expect(hasFallback || document.querySelector('[data-genui-mermaid]') !== null).toBe(true)
   })
 
   it('renders a scene3d node without crashing in jsdom', async () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'scene3d', title: '立方体', meshes: [
+      { type: 'scene3d', title: 'Cube', meshes: [
         { shape: 'box', size: [1, 1, 1], color: '#6ea8ff', position: [0, 0, 0] },
       ] },
     ] })} />)
     expect(document.querySelector('[data-genui-scene3d]')).not.toBeNull()
     // jsdom has no WebGL; the loading hint or error state is acceptable, but
     // the node itself must exist.
-    expect(document.body.textContent).toContain('立方体')
+    expect(document.body.textContent).toContain('Cube')
   })
 })
 
@@ -132,12 +132,12 @@ describe.skipIf(!hasFenceRegistry)('v1.4 content structure components', () => {
   it('renders a timeline with markers', () => {
     render(<MarkdownText text={fenced({ items: [
       { type: 'timeline', items: [
-        { title: '项目启动', desc: '初始化仓库', time: '09:00' },
-        { title: '完成开发', desc: '功能全部实现', time: '15:30' },
+        { title: 'Kickoff', desc: 'Initialize the repository', time: '09:00' },
+        { title: 'Development done', desc: 'Every feature implemented', time: '15:30' },
       ] },
     ] })} />)
-    expect(screen.getByText('项目启动')).toBeTruthy()
-    expect(screen.getByText('完成开发')).toBeTruthy()
+    expect(screen.getByText('Kickoff')).toBeTruthy()
+    expect(screen.getByText('Development done')).toBeTruthy()
     expect(document.querySelectorAll('[class*="tlDot"]').length).toBe(2)
   })
 
@@ -159,10 +159,10 @@ describe.skipIf(!hasFenceRegistry)('v1.4 content structure components', () => {
 
   it('renders a breadcrumb trail with current marker', () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'breadcrumb', items: ['首页', '设置', '账户'] },
+      { type: 'breadcrumb', items: ['Home', 'Settings', 'Account'] },
     ] })} />)
-    expect(screen.getByText('首页')).toBeTruthy()
-    expect(screen.getByText('账户')).toBeTruthy()
+    expect(screen.getByText('Home')).toBeTruthy()
+    expect(screen.getByText('Account')).toBeTruthy()
     expect(document.querySelectorAll('[class*="bcSep"]').length).toBe(2)
   })
 })
@@ -176,16 +176,16 @@ describe.skipIf(!hasFenceRegistry)('GenUI v2 event loop', () => {
     const { container } = render(
       <GenuiActionContext.Provider value={(a, p) => actions.push([a, p])}>
         <MarkdownText text={fenced({ items: [
-          { type: 'button', label: '刷新', action: 'refresh' },
-          { type: 'button', label: '普通按钮' },
+          { type: 'button', label: 'Refresh', action: 'refresh' },
+          { type: 'button', label: 'Plain button' },
         ] })} />
       </GenuiActionContext.Provider>,
     )
     const buttons = container.querySelectorAll('button')
     fireEvent.click(buttons[0]!)
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
-    expect(actions).toEqual([['refresh', { type: 'button', label: '刷新' }]])
-    // 无 action 的按钮不触发
+    expect(actions).toEqual([['refresh', { type: 'button', label: 'Refresh' }]])
+    // A button without an action fires nothing.
     fireEvent.click(buttons[1]!)
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(actions).toHaveLength(1)
@@ -197,8 +197,8 @@ describe.skipIf(!hasFenceRegistry)('GenUI v2 event loop', () => {
     const { container } = render(
       <GenuiActionContext.Provider value={(a, p) => actions.push([a, p])}>
         <MarkdownText text={fenced({ items: [
-          { type: 'switch', label: '自动保存', checked: true, action: 'toggle-save' },
-          { type: 'checkbox', label: '同意', action: 'agree' },
+          { type: 'switch', label: 'Autosave', checked: true, action: 'toggle-save' },
+          { type: 'checkbox', label: 'Agree', action: 'agree' },
         ] })} />
       </GenuiActionContext.Provider>,
     )
@@ -212,7 +212,7 @@ describe.skipIf(!hasFenceRegistry)('GenUI v2 event loop', () => {
 
   it('does not fire actions without a provider (v1 behavior)', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
-      { type: 'button', label: '刷新', action: 'refresh' },
+      { type: 'button', label: 'Refresh', action: 'refresh' },
     ] })} />)
     fireEvent.click(container.querySelector('button')!)
     // No provider: nothing to observe; the click must not throw.
@@ -223,7 +223,7 @@ describe.skipIf(!hasFenceRegistry)('GenUI v2 event loop', () => {
 describe.skipIf(!hasFenceRegistry)('GenUI v2 interactive plot', () => {
   it('renders parameter sliders and re-renders on drag', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
-      { type: 'plot', title: '可调正弦', series: [
+      { type: 'plot', title: 'Adjustable sine', series: [
         { expr: 'a * sin(x)', label: 'sin', params: [{ name: 'a', value: 1, min: 0, max: 5 }] },
       ] },
     ] })} />)
@@ -259,9 +259,9 @@ describe.skipIf(!hasFenceRegistry)('GenUI component registry', () => {
     ))
     try {
       const { container } = render(<MarkdownText text={fenced({ items: [
-        { type: 'weather', temp: 24, condition: '晴' },
+        { type: 'weather', temp: 24, condition: 'Sunny' },
       ] })} />)
-      expect(container.querySelector('[data-testid="weather-card"]')?.textContent).toBe('24°C 晴')
+      expect(container.querySelector('[data-testid="weather-card"]')?.textContent).toBe('24°C Sunny')
     } finally {
       dispose()
     }

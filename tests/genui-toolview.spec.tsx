@@ -36,13 +36,13 @@ const resultBlock = (meta: unknown): ToolCallBlock => ({
 
 describe('GenuiToolView', () => {
   it('renders the spec from result meta', () => {
-    render(<GenuiToolView {...props(resultBlock({ title: '监控面板', items: [
+    render(<GenuiToolView {...props(resultBlock({ title: 'Ops dashboard', items: [
       { type: 'stat', label: 'CPU', value: '42%' },
       { type: 'progress', value: 72 },
     ] }))} />)
     const block = document.querySelector('[data-genui]')
     expect(block).not.toBeNull()
-    expect(block!.textContent).toContain('监控面板')
+    expect(block!.textContent).toContain('Ops dashboard')
     expect(document.body.textContent).toContain('CPU')
     expect(document.body.textContent).toContain('42%')
   })

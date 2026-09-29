@@ -53,17 +53,17 @@ function renderBlock(spec: unknown, actions: Array<[string, Record<string, unkno
   )
 }
 
-describe('v15: 导出、调色板与卡片强调色', () => {
+describe('v15: export, palette and card accent', () => {
   it('serialises a table to Markdown and CSV (escaping included)', () => {
-    const columns = ['渠道', '备注']
-    const rows = [['自然搜索', '含,逗号'], ['付费|搜索', '含"引号"']]
+    const columns = ['Channel', 'Notes']
+    const rows = [['Organic', 'has,a comma'], ['Paid|search', 'has"quotes"']]
     const md = tableToMarkdown(columns, rows)
-    expect(md.split('\n')[0]).toBe('| 渠道 | 备注 |')
+    expect(md.split('\n')[0]).toBe('| Channel | Notes |')
     expect(md.split('\n')[1]).toBe('| --- | --- |')
-    expect(md).toContain('付费\\|搜索')
+    expect(md).toContain('Paid\\|search')
     const csv = tableToCsv(rows)
-    expect(csv.split('\n')[0]).toBe('自然搜索,"含,逗号"')
-    expect(csv).toContain('""引号""')
+    expect(csv.split('\n')[0]).toBe('Organic,"has,a comma"')
+    expect(csv).toContain('""quotes""')
   })
 
   it('shows the export chips only when table.export is set', () => {
@@ -74,7 +74,7 @@ describe('v15: 导出、调色板与卡片强调色', () => {
     // `[class*="tableTool"]` would also match the `.tableTools` wrapper.
     const chips = on.container.querySelectorAll('[class*="tableTools"] button')
     expect(chips).toHaveLength(2)
-    expect(chips[0]!.textContent).toBe('复制 Markdown')
+    expect(chips[0]!.textContent).toBe('Copy Markdown')
   })
 
   it('accepts a hex palette and drops invalid colours', () => {
@@ -86,30 +86,30 @@ describe('v15: 导出、调色板与卡片强调色', () => {
 
   it('applies a card accent without changing the layout classes', () => {
     const { container } = renderBlock({
-      items: [{ type: 'card', accent: '#f59e0b', title: '成本', items: [{ type: 'text', content: 'x' }] }],
+      items: [{ type: 'card', accent: '#f59e0b', title: 'Cost', items: [{ type: 'text', content: 'x' }] }],
     })
     const card = container.querySelector('[class*="card"]') as HTMLElement
     expect(card.getAttribute('style')).toContain('#f59e0b')
   })
 })
 
-describe('v14: echart preset 与 links', () => {
+describe('v14: echart presets and links', () => {
   it('keeps sankey/graph links through repair and drops malformed edges', () => {
     const spec = repairGenuiSpec({
       items: [{
         type: 'echart',
         preset: 'sankey',
         links: [
-          { from: '入口', to: 'API', value: 40 },
+          { from: 'Entry', to: 'API', value: 40 },
           { from: 'API' },
-          { to: '孤立' },
-          { from: 'API', to: '渲染', value: 32 },
+          { to: 'Orphan' },
+          { from: 'API', to: 'Render', value: 32 },
         ],
       }],
     })!
     const node = spec.items[0] as { links?: Array<{ from: string; to: string }> }
     expect(node.links).toHaveLength(2)
-    expect(node.links?.[0]).toMatchObject({ from: '入口', to: 'API' })
+    expect(node.links?.[0]).toMatchObject({ from: 'Entry', to: 'API' })
   })
 
   it('accepts the new presets and rejects an unknown one', () => {
@@ -128,24 +128,24 @@ describe('v14: echart preset 与 links', () => {
   })
 })
 
-describe('v13: hero 封面块与 bento 跨列', () => {
+describe('v13: hero cover block and bento column spans', () => {
   it('renders a hero with its metric, title, subtitle and tone', () => {
     const { container } = renderBlock({
-      items: [{ type: 'hero', label: '可用率', value: '99.96%', delta: '+0.02%', tone: 'success', title: '服务健康', subtitle: '近 30 天' }],
+      items: [{ type: 'hero', label: 'Uptime', value: '99.96%', delta: '+0.02%', tone: 'success', title: 'Service health', subtitle: 'Last 30 days' }],
     })
     const hero = container.querySelector('[class*="hero"]') as HTMLElement
     expect(hero).not.toBeNull()
     expect(hero.className).toContain('heroSuccess')
-    expect(container.textContent).toContain('可用率')
-    expect(container.textContent).toContain('服务健康')
-    expect(container.textContent).toContain('近 30 天')
+    expect(container.textContent).toContain('Uptime')
+    expect(container.textContent).toContain('Service health')
+    expect(container.textContent).toContain('Last 30 days')
   })
 
   it('spans grid columns for bento layouts', () => {
     const { container } = renderBlock({
       items: [{ type: 'grid', cols: 3, items: [
-        { type: 'card', span: 2, title: '宽卡', items: [{ type: 'text', content: 'a' }] },
-        { type: 'card', title: '窄卡', items: [{ type: 'text', content: 'b' }] },
+        { type: 'card', span: 2, title: 'Wide card', items: [{ type: 'text', content: 'a' }] },
+        { type: 'card', title: 'Narrow card', items: [{ type: 'text', content: 'b' }] },
       ] }],
     })
     const spanned = container.querySelector('[class*="gridSpan"]') as HTMLElement
@@ -155,20 +155,20 @@ describe('v13: hero 封面块与 bento 跨列', () => {
   })
 })
 
-describe('v12: 本地数据绑定（就地筛选）', () => {
+describe('v12: local data binding (in-place filtering)', () => {
   it('filters table rows from a bound input, live', () => {
     const { container } = renderBlock({
       items: [
-        { type: 'input', id: 'q', label: '搜索' },
-        { type: 'table', columns: ['服务', 'P95'], filter: 'q', rows: [['API 网关', '128'], ['搜索', '190'], ['推荐', '250']] },
+        { type: 'input', id: 'q', label: 'Search' },
+        { type: 'table', columns: ['Service', 'P95'], filter: 'q', rows: [['API gateway', '128'], ['Search', '190'], ['Recs', '250']] },
       ],
     })
     const rows = () => container.querySelectorAll('tbody tr')
     expect(rows()).toHaveLength(3)
-    fireEvent.change(container.querySelector('input')!, { target: { value: '搜索' } })
+    fireEvent.change(container.querySelector('input')!, { target: { value: 'Search' } })
     expect(rows()).toHaveLength(1)
     expect(container.querySelector('tbody')?.textContent).toContain('190')
-    expect(container.textContent).toContain('筛选后 1 / 3 行')
+    expect(container.textContent).toContain('1 / 3 rows after filtering')
     fireEvent.change(container.querySelector('input')!, { target: { value: '' } })
     expect(rows()).toHaveLength(3)
   })
@@ -177,20 +177,20 @@ describe('v12: 本地数据绑定（就地筛选）', () => {
     const { container } = renderBlock({
       items: [
         { type: 'input', id: 'q' },
-        { type: 'table', columns: ['服务', '备注'], filter: 'q', filterColumn: 0, rows: [['API', '网关'], ['搜索', 'API']] },
+        { type: 'table', columns: ['Service', 'Notes'], filter: 'q', filterColumn: 0, rows: [['API', 'gateway'], ['Search', 'API']] },
       ],
     })
     fireEvent.change(container.querySelector('input')!, { target: { value: 'api' } })
     const body = container.querySelector('tbody')?.textContent ?? ''
     expect(body).toContain('API')
-    expect(body).not.toContain('搜索')
+    expect(body).not.toContain('Search')
   })
 
   it('sorts by a bound select value', () => {
     const { container } = renderBlock({
       items: [
         { type: 'select', id: 'sort', options: ['P95'] },
-        { type: 'table', columns: ['服务', 'P95'], sortField: 'sort', rows: [['A', '250'], ['B', '128']] },
+        { type: 'table', columns: ['Service', 'P95'], sortField: 'sort', rows: [['A', '250'], ['B', '128']] },
       ],
     })
     fireEvent.change(container.querySelector('select')!, { target: { value: 'P95' } })
@@ -202,22 +202,22 @@ describe('v12: 本地数据绑定（就地筛选）', () => {
     const chart = renderBlock({
       items: [
         { type: 'input', id: 'q' },
-        { type: 'chart', filter: 'q', data: [{ label: '搜索', value: 82 }, { label: '社交', value: 41 }] },
+        { type: 'chart', filter: 'q', data: [{ label: 'Search', value: 82 }, { label: 'Social', value: 41 }] },
       ],
     })
-    fireEvent.change(chart.container.querySelector('input')!, { target: { value: '搜索' } })
+    fireEvent.change(chart.container.querySelector('input')!, { target: { value: 'Search' } })
     expect(chart.container.querySelectorAll('[class*="barCol"]')).toHaveLength(1)
     chart.unmount()
 
     const list = renderBlock({
       items: [
         { type: 'input', id: 'q' },
-        { type: 'list', filter: 'q', items: ['苹果', '香蕉', '苹果派'] },
+        { type: 'list', filter: 'q', items: ['Apple', 'Banana', 'Apple pie'] },
       ],
     })
-    fireEvent.change(list.container.querySelector('input')!, { target: { value: '苹果' } })
+    fireEvent.change(list.container.querySelector('input')!, { target: { value: 'Apple' } })
     expect(list.container.querySelectorAll('[class*="li"]').length).toBeGreaterThanOrEqual(2)
-    expect(list.container.textContent).toContain('匹配 2 / 3 项')
+    expect(list.container.textContent).toContain('2 / 3 matched')
   })
 })
 
@@ -226,9 +226,9 @@ describe('v11: table master-detail rows', () => {
     const { container } = renderBlock({
       items: [{
         type: 'table',
-        columns: ['服务', 'P95'],
-        rows: [['API 网关', '128'], ['搜索', '190']],
-        details: [[{ type: 'text', content: '详情内容' }], null],
+        columns: ['Service', 'P95'],
+        rows: [['API gateway', '128'], ['Search', '190']],
+        details: [[{ type: 'text', content: 'detail body' }], null],
       }],
     })
     // Only the row that carries details gets a toggle.
@@ -239,7 +239,7 @@ describe('v11: table master-detail rows', () => {
 
     fireEvent.click(toggles[0]!)
     expect(container.querySelector('[class*="detailToggle"]')!.getAttribute('aria-expanded')).toBe('true')
-    expect(container.querySelector('[class*="detailRow"]')?.textContent).toContain('详情内容')
+    expect(container.querySelector('[class*="detailRow"]')?.textContent).toContain('detail body')
 
     fireEvent.click(container.querySelector('[class*="detailToggle"]')!)
     expect(container.querySelector('[class*="detailRow"]')).toBeNull()
@@ -266,14 +266,14 @@ describe('v7: table sections/totals, stacked bars, card tones', () => {
     const { container } = renderBlock({
       items: [{
         type: 'table',
-        columns: ['区域', 'Q1', 'Q2'],
+        columns: ['Region', 'Q1', 'Q2'],
         types: ['group', 'num', 'num'],
-        rows: [['华东', '', ''], ['上海', '120', '138']],
+        rows: [['East', '', ''], ['Shanghai', '120', '138']],
       }],
     })
     const groupCell = container.querySelector('[class*="groupRow"] td')
     // v10: the header is a toggle with a chevron and the child count.
-    expect(groupCell?.textContent).toBe('▾华东1')
+    expect(groupCell?.textContent).toBe('▾East1')
     expect(groupCell?.getAttribute('colspan')).toBe('3')
     expect(container.querySelector('[class*="groupToggle"]')?.getAttribute('aria-expanded')).toBe('true')
     // Children are indented under the section.
@@ -284,9 +284,9 @@ describe('v7: table sections/totals, stacked bars, card tones', () => {
     const { container } = renderBlock({
       items: [{
         type: 'table',
-        columns: ['区域', 'Q1'],
+        columns: ['Region', 'Q1'],
         types: ['group', 'num'],
-        rows: [['华东', ''], ['上海', '120'], ['杭州', '96']],
+        rows: [['East', ''], ['Shanghai', '120'], ['Hangzhou', '96']],
       }],
     })
     expect(container.querySelectorAll('tr[class*="groupChild"]')).toHaveLength(2)
@@ -301,14 +301,14 @@ describe('v7: table sections/totals, stacked bars, card tones', () => {
     const { container } = renderBlock({
       items: [{
         type: 'table',
-        columns: ['区域', 'Q1', 'Q2'],
+        columns: ['Region', 'Q1', 'Q2'],
         types: ['group', 'num', 'num'],
         total: true,
-        rows: [['华东', '', ''], ['上海', '120', '138'], ['杭州', '96', '104']],
+        rows: [['East', '', ''], ['Shanghai', '120', '138'], ['Hangzhou', '96', '104']],
       }],
     })
     const footer = [...container.querySelectorAll('tfoot td')].map(td => td.textContent)
-    expect(footer[0]).toBe('合计')
+    expect(footer[0]).toBe('Total')
     expect(footer[1]).toBe('216')
     expect(footer[2]).toBe('242')
   })
@@ -320,8 +320,8 @@ describe('v7: table sections/totals, stacked bars, card tones', () => {
         data: [],
         stacked: true,
         series: [
-          { label: '已完成', data: [{ label: 'Q1', value: 30 }] },
-          { label: '进行中', data: [{ label: 'Q1', value: 10 }] },
+          { label: 'Done', data: [{ label: 'Q1', value: 30 }] },
+          { label: 'In progress', data: [{ label: 'Q1', value: 10 }] },
         ],
       }],
     })
@@ -386,7 +386,7 @@ describe('v7: table sections/totals, stacked bars, card tones', () => {
     })
     expect([...container.querySelectorAll('[class*="barValue"]')].map(node => node.textContent)).toEqual(['0.3', '3.434'])
     fireEvent.mouseEnter(container.querySelector('[class*="stackSeg"]')!)
-    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('合计0.3')
+    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('Total0.3')
     expect(container.textContent).not.toContain('0.30000000000000004')
     expect(container.textContent).not.toContain('3.3000000000000003')
   })
@@ -407,7 +407,7 @@ describe('v7: table sections/totals, stacked bars, card tones', () => {
     expect([...container.querySelectorAll('[class*="hbarValue"]')].map(node => node.textContent)).toEqual(['0.3', '3.3'])
     expect(container.querySelector('[class*="hbarTrack"][title]')?.getAttribute('title')).toBe('Q1: 0.3')
     fireEvent.mouseEnter(container.querySelector('[class*="hbarSeg"]')!)
-    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('合计0.3')
+    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('Total0.3')
     expect(container.textContent).not.toContain('0.30000000000000004')
     expect(container.textContent).not.toContain('3.3000000000000003')
   })
@@ -426,7 +426,7 @@ describe('v7: table sections/totals, stacked bars, card tones', () => {
     })
     expect([...container.querySelectorAll('[class*="hbarValue"]')].map(node => node.textContent)).toEqual(['0.3', '3.3'])
     fireEvent.mouseEnter(container.querySelector('[class*="hbarFill"]')!)
-    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('合计0.3')
+    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('Total0.3')
     expect(container.textContent).not.toContain('0.30000000000000004')
     expect(container.textContent).not.toContain('3.3000000000000003')
   })
@@ -443,7 +443,7 @@ describe('v7: table sections/totals, stacked bars, card tones', () => {
       }],
     })
     fireEvent.mouseEnter(container.querySelector('[class*="groupedFill"]')!)
-    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('合计0.3')
+    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('Total0.3')
     expect(container.textContent).not.toContain('0.30000000000000004')
     expect(container.textContent).not.toContain('3.3000000000000003')
   })
@@ -455,24 +455,24 @@ describe('v7: table sections/totals, stacked bars, card tones', () => {
         data: [],
         stacked: true,
         series: [
-          { label: '已完成', data: [{ label: 'Q1', value: 30 }] },
-          { label: '进行中', data: [{ label: 'Q1', value: 10 }] },
+          { label: 'Done', data: [{ label: 'Q1', value: 30 }] },
+          { label: 'In progress', data: [{ label: 'Q1', value: 10 }] },
         ],
       }],
     })
     const segments = container.querySelectorAll('[class*="stackSeg"]')
     fireEvent.mouseEnter(segments[0]!)
     const tip = container.querySelector('[class*="chartTip"]')
-    expect(tip?.textContent).toContain('已完成')
+    expect(tip?.textContent).toContain('Done')
     expect(tip?.textContent).toContain('30')
-    expect(tip?.textContent).toContain('合计')
+    expect(tip?.textContent).toContain('Total')
     fireEvent.mouseLeave(container.querySelector('[data-genui-chart]')!)
     expect(container.querySelector('[class*="chartTip"]')).toBeNull()
   })
 
   it('tints a card by tone', () => {
     const { container } = renderBlock({
-      items: [{ type: 'card', tone: 'success', title: '已通过', items: [{ type: 'text', content: 'ok' }] }],
+      items: [{ type: 'card', tone: 'success', title: 'Passed', items: [{ type: 'text', content: 'ok' }] }],
     })
     expect(container.querySelector('[class*="cardSuccess"]')).not.toBeNull()
   })
@@ -483,7 +483,7 @@ describe('v6: rich table columns', () => {
     const { container } = renderBlock({
       items: [{
         type: 'table',
-        columns: ['#', '服务', '趋势', '可用率'],
+        columns: ['#', 'Service', 'Trend', 'Uptime'],
         types: ['index', 'text', 'spark', 'ring'],
         rows: [['1', 'API', '3,5,4,8,6', '99.96']],
       }],
@@ -496,7 +496,7 @@ describe('v6: rich table columns', () => {
 
   it('falls back to text when a spark cell has no number list', () => {
     const { container } = renderBlock({
-      items: [{ type: 'table', columns: ['趋势'], types: ['spark'], rows: [['n/a']] }],
+      items: [{ type: 'table', columns: ['Trend'], types: ['spark'], rows: [['n/a']] }],
     })
     expect(container.querySelector('svg[class*="cellSpark"]')).toBeNull()
     expect(container.textContent).toContain('n/a')
@@ -506,13 +506,13 @@ describe('v6: rich table columns', () => {
 describe('v5: progress ring, target marker, stat unit split', () => {
   it('renders a ring gauge with the value in the middle', () => {
     const { container } = renderBlock({
-      items: [{ type: 'progress', variant: 'ring', value: 72, label: '完成度' }],
+      items: [{ type: 'progress', variant: 'ring', value: 72, label: 'Completion' }],
     })
     const ring = container.querySelector('[role="progressbar"]')
     expect(ring).not.toBeNull()
     expect(ring!.querySelector('svg')).not.toBeNull()
     expect(ring!.textContent).toContain('72%')
-    expect(ring!.textContent).toContain('完成度')
+    expect(ring!.textContent).toContain('Completion')
   })
 
   it('marks the target on a bar track', () => {
@@ -526,7 +526,7 @@ describe('v5: progress ring, target marker, stat unit split', () => {
 
   it('splits a stat value into number and unit for the baseline typography', () => {
     const { container } = renderBlock({
-      items: [{ type: 'stat', label: '内存', value: '6.8 GB' }],
+      items: [{ type: 'stat', label: 'Memory', value: '6.8 GB' }],
     })
     const unit = container.querySelector('[class*="statUnit"]')
     expect(unit?.textContent).toBe('GB')
@@ -554,26 +554,26 @@ describe('v3: stat sparkline', () => {
 describe('v2.9/v8: chart hover tooltips', () => {
   it('bars show the label and value in the instant tooltip', () => {
     const { container } = renderBlock({
-      items: [{ type: 'chart', data: [{ label: '一', value: 42 }] }],
+      items: [{ type: 'chart', data: [{ label: 'One', value: 42 }] }],
     })
     fireEvent.mouseEnter(container.querySelector('[class*="barFill"]')!)
     const tip = container.querySelector('[class*="chartTip"]')
-    expect(tip?.textContent).toContain('一')
+    expect(tip?.textContent).toContain('One')
     expect(tip?.textContent).toContain('42')
   })
 
   it('grouped bars name the series and the category total', () => {
     const { container } = renderBlock({
       items: [{ type: 'chart', series: [
-        { label: '本月', data: [{ label: 'Q1', value: 3 }] },
-        { label: '上月', data: [{ label: 'Q1', value: 5 }] },
+        { label: 'This month', data: [{ label: 'Q1', value: 3 }] },
+        { label: 'Last month', data: [{ label: 'Q1', value: 5 }] },
       ] }],
     })
     fireEvent.mouseEnter(container.querySelector('[class*="groupedFill"]')!)
     const tip = container.querySelector('[class*="chartTip"]')
-    expect(tip?.textContent).toContain('本月')
+    expect(tip?.textContent).toContain('This month')
     expect(tip?.textContent).toContain('3')
-    expect(tip?.textContent).toContain('合计')
+    expect(tip?.textContent).toContain('Total')
   })
 
   it('donut arcs show label, value and share', () => {
@@ -590,11 +590,11 @@ describe('v2.9/v8: chart hover tooltips', () => {
   it('line dots show the point value', () => {
     const { container } = renderBlock({
       items: [{ type: 'chart', kind: 'line', data: [
-        { label: '周一', value: 8 }, { label: '周二', value: 12 },
+        { label: 'Mon', value: 8 }, { label: 'Tue', value: 12 },
       ] }],
     })
     fireEvent.mouseEnter(container.querySelectorAll('[class*="lineDot"]')[0]!)
-    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('周一')
+    expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('Mon')
     fireEvent.mouseEnter(container.querySelectorAll('[class*="lineDot"]')[1]!)
     expect(container.querySelector('[class*="chartTip"]')?.textContent).toContain('12')
   })
@@ -604,7 +604,7 @@ describe('v2.9: slider form node', () => {
   it('renders with the default value and fires a debounced action with id', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const { container } = renderBlock({
-      items: [{ type: 'slider', label: '音量', min: 0, max: 10, value: 4, action: 'vol', id: 'v' }],
+      items: [{ type: 'slider', label: 'Volume', min: 0, max: 10, value: 4, action: 'vol', id: 'v' }],
     }, actions)
     const input = container.querySelector('input[type="range"]') as HTMLInputElement
     expect(input.value).toBe('4')
@@ -619,8 +619,8 @@ describe('v2.9: slider form node', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const { container } = renderBlock({
       items: [
-        { type: 'slider', label: '音量', min: 0, max: 10, value: 2, action: 'vol', id: 'v' },
-        { type: 'submit', label: '提交', action: 'send' },
+        { type: 'slider', label: 'Volume', min: 0, max: 10, value: 2, action: 'vol', id: 'v' },
+        { type: 'submit', label: 'Submit', action: 'send' },
       ],
     }, actions)
     fireEvent.change(container.querySelector('input[type="range"]')!, { target: { value: '9' } })
@@ -633,8 +633,8 @@ describe('v2.9: slider form node', () => {
 
 describe('v2.9: table local sorting', () => {
   const spec = {
-    items: [{ type: 'table', columns: ['名称', '数量'], rows: [
-      ['香蕉', '10'], ['苹果', '25'], ['橙', 5],
+    items: [{ type: 'table', columns: ['Name', 'Qty'], rows: [
+      ['Banana', '10'], ['Apple', '25'], ['Orange', 5],
     ] }],
   }
 
@@ -644,18 +644,18 @@ describe('v2.9: table local sorting', () => {
   it('sorts ascending, then descending, then restores the spec order (numeric-aware)', () => {
     const { container } = renderBlock(spec)
     const headers = container.querySelectorAll('thead th button')
-    expect(bodyRows(container)).toEqual(['香蕉10', '苹果25', '橙5'])
-    // numeric-aware ascending on the 数量 column (5 < 10 < 25, not "10" < "25" < "5")
+    expect(bodyRows(container)).toEqual(['Banana10', 'Apple25', 'Orange5'])
+    // numeric-aware ascending on the Qty column (5 < 10 < 25, not "10" < "25" < "5")
     fireEvent.click(headers[1]!)
-    expect(bodyRows(container)).toEqual(['橙5', '香蕉10', '苹果25'])
+    expect(bodyRows(container)).toEqual(['Orange5', 'Banana10', 'Apple25'])
     expect(headers[1]!.closest('th')!.getAttribute('aria-sort')).toBe('ascending')
     // descending
     fireEvent.click(headers[1]!)
-    expect(bodyRows(container)).toEqual(['苹果25', '香蕉10', '橙5'])
+    expect(bodyRows(container)).toEqual(['Apple25', 'Banana10', 'Orange5'])
     expect(headers[1]!.closest('th')!.getAttribute('aria-sort')).toBe('descending')
     // third click restores the spec order
     fireEvent.click(headers[1]!)
-    expect(bodyRows(container)).toEqual(['香蕉10', '苹果25', '橙5'])
+    expect(bodyRows(container)).toEqual(['Banana10', 'Apple25', 'Orange5'])
     expect(headers[1]!.closest('th')!.getAttribute('aria-sort')).toBe('none')
   })
 })

@@ -36,19 +36,19 @@ describe('inline markup', () => {
   })
 
   it('renders a real newline as a <br> line break', () => {
-    const out = html('第一行\n第二行')
+    const out = html('first line\nsecond line')
     expect(out).toContain('<br')
     expect(out).not.toContain('\n')
   })
 
   it('renders CRLF as a single <br> and mixes with emphasis', () => {
-    const out = html('**重点**\r\n说明')
+    const out = html('**key point**\r\ncaption')
     expect(out).toContain('<strong')
     expect(out.match(/<br/g)).toHaveLength(1)
   })
 
   it('breaks the line inside emphasis content too', () => {
-    const out = html('**第一行\n第二行**')
+    const out = html('**first line\nsecond line**')
     expect(out).toContain('<strong')
     expect(out).toContain('<br')
   })
@@ -62,16 +62,16 @@ describe('inline markup', () => {
   })
 
   it('keeps fenced backticks literal instead of parsing an inner code span', () => {
-    const out = html('因为：```score = 1```于是')
+    const out = html('because: ```score = 1```so')
     expect(out).not.toContain('<code')
     expect(out).toContain('```score = 1```')
   })
 
   it('keeps complete fenced content opaque while parsing surrounding inline text', () => {
-    const out = html('**前文** ```js\nconst name = `foo`\n**原文**\n``` **后文**')
+    const out = html('**before** ```js\nconst name = `foo`\n**source**\n``` **after**')
     expect(out).not.toContain('<code')
     expect(out).toContain('const name = `foo`')
-    expect(out).toContain('**原文**')
+    expect(out).toContain('**source**')
     expect(out.match(/<strong/g)).toHaveLength(2)
     expect(out).not.toContain('<br')
 
@@ -81,10 +81,10 @@ describe('inline markup', () => {
   })
 
   it('keeps content after an unclosed fence marker literal', () => {
-    const out = html('**前文** ```js\nconst name = `foo`\n**原文**')
+    const out = html('**before** ```js\nconst name = `foo`\n**source**')
     expect(out).not.toContain('<code')
     expect(out).toContain('const name = `foo`')
-    expect(out).toContain('**原文**')
+    expect(out).toContain('**source**')
     expect(out.match(/<strong/g)).toHaveLength(1)
     expect(out).not.toContain('<br')
   })
@@ -96,15 +96,15 @@ describe('inline markup', () => {
   })
 
   it('still renders a single-backtick code span', () => {
-    const out = html('运行 `pnpm test`')
+    const out = html('run `pnpm test`')
     expect(out).toContain('<code')
     expect(out).toContain('pnpm test')
   })
 
   it('keeps the reported callout content as literal inline text', () => {
     const { container } = render(<GenuiBlock spec={{ items: [
-      { type: 'callout', tone: 'error', title: '围栏', content: '因为：```score = 1 - 0.05 × level ```于是照建不误' },
-      { type: 'callout', tone: 'info', title: '表格', content: '| 配置 | 级数 |\n|---|---|\n| 破例版 | 887 |' },
+      { type: 'callout', tone: 'error', title: 'Fence', content: 'because: ```score = 1 - 0.05 × level ```so it renders anyway' },
+      { type: 'callout', tone: 'info', title: 'Table', content: '| config | level |\n|---|---|\n| exception | 887 |' },
     ] }} />)
     expect(container.querySelector('code')).toBeNull()
     expect(container.textContent).toContain('```score = 1 - 0.05 × level ```')
@@ -115,16 +115,16 @@ describe('inline markup', () => {
 
   it('expresses a line break inside a callout through the block path (#177)', () => {
     render(<GenuiBlock spec={{
-      title: '换行',
+      title: 'Line break',
       items: [
-        { type: 'callout', tone: 'info', title: '两段', content: '第一行\n第二行' },
-        { type: 'text', content: '甲\n乙' },
+        { type: 'callout', tone: 'info', title: 'Two paragraphs', content: 'first line\nsecond line' },
+        { type: 'text', content: 'A\nB' },
       ],
     }} />)
     const brs = document.querySelectorAll('br')
     expect(brs.length).toBeGreaterThanOrEqual(2)
-    expect(document.body.textContent).toContain('第一行')
-    expect(document.body.textContent).toContain('第二行')
+    expect(document.body.textContent).toContain('first line')
+    expect(document.body.textContent).toContain('second line')
   })
 
   it('updates a formula without leaving stale math or damaging surrounding text', () => {
@@ -142,7 +142,7 @@ describe('inline markup', () => {
   })
 
   it('renders code, bold, mark and an https link as elements', () => {
-    const out = html('跑 `npm run build`，**一定要**看 ==退出码==，见 [文档](https://example.com/a)')
+    const out = html('run `npm run build`, **always** check ==the exit code==, see [docs](https://example.com/a)')
     expect(out).toContain('<code')
     expect(out).toContain('<strong')
     expect(out).toContain('<mark')
@@ -155,19 +155,19 @@ describe('inline markup', () => {
   })
 
   it('leaves an unterminated marker literal instead of throwing', () => {
-    expect(html('这里有 **没闭合的加粗')).toContain('**没闭合的加粗')
-    expect(html('只有一个反引号 ` 在里面')).toContain('`')
+    expect(html('here **unclosed bold')).toContain('**unclosed bold')
+    expect(html('only one backtick ` inside')).toContain('`')
   })
 
   it('refuses a non-http(s) link and keeps only its label', () => {
-    const out = html('[点我](javascript:alert(1))')
+    const out = html('[click me](javascript:alert(1))')
     expect(out).not.toContain('javascript:')
     expect(out).not.toContain('<a')
-    expect(out).toContain('点我')
+    expect(out).toContain('click me')
   })
 
   it('never emits HTML from the source text', () => {
-    const out = html('<img src=x onerror=alert(1)> 与 **加粗**')
+    const out = html('<img src=x onerror=alert(1)> and **bold**')
     expect(out).not.toContain('<img')
     expect(out).toContain('&lt;img')
   })
@@ -189,7 +189,7 @@ describe('inline markup', () => {
   })
 
   it('unescapes $ and backslash tokens to their literal characters', () => {
-    const out = html(String.raw`总价 \$100，路径 C:\\dir，另一个 \$x\$`)
+    const out = html(String.raw`total \$100, path C:\\dir, another \$x\$`)
     expect(out).toContain('$100')
     expect(out).toContain('C:\\dir')
     expect(out).toContain('$x$')
@@ -205,8 +205,8 @@ describe('inline markup', () => {
 
   it('returns the plain string untouched when there is no markup', () => {
     // Identity: the fast path must not wrap plain prose in extra elements.
-    const plain = '完全没有标记的一句话'
+    const plain = 'a sentence with no markup at all'
     expect(renderInline(plain)).toBe(plain)
-    expect(html(plain)).toBe('<div>完全没有标记的一句话</div>')
+    expect(html(plain)).toBe('<div>a sentence with no markup at all</div>')
   })
 })

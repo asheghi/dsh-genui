@@ -10,37 +10,37 @@ import { MarkdownText } from './markdown-labels.tsx'
 afterEach(cleanup)
 
 const SPEC = {
-  title: '订单概览',
+  title: 'Order overview',
   gap: 12,
   items: [
     { type: 'grid', cols: 3, items: [
-      { type: 'stat', label: '总收入', value: '¥128,430', delta: '+12.4%' },
-      { type: 'stat', label: '订单数', value: '1,024', delta: '-3.1%' },
-      { type: 'stat', label: '转化率', value: '3.7%' },
+      { type: 'stat', label: 'Total revenue', value: '¥128,430', delta: '+12.4%' },
+      { type: 'stat', label: 'Orders', value: '1,024', delta: '-3.1%' },
+      { type: 'stat', label: 'Conversion rate', value: '3.7%' },
     ] },
-    { type: 'card', title: '近 7 日收入', items: [
+    { type: 'card', title: 'Revenue, last 7 days', items: [
       { type: 'chart', data: [
-        { label: '一', value: 42 }, { label: '二', value: 58 }, { label: '三', value: 49 },
+        { label: 'one', value: 42 }, { label: 'two', value: 58 }, { label: 'three', value: 49 },
       ] },
     ] },
     { type: 'tabs', tabs: [
-      { label: '订单', items: [
-        { type: 'table', columns: ['订单', '金额'], rows: [['#1042', '¥4,200'], ['#1043', '¥1,850']] },
+      { label: 'Orders', items: [
+        { type: 'table', columns: ['Order', 'Amount'], rows: [['#1042', '¥4,200'], ['#1043', '¥1,850']] },
       ] },
-      { label: '退款', items: [
-        { type: 'list', items: ['无待处理退款'] },
+      { label: 'Refunds', items: [
+        { type: 'list', items: ['No pending refunds'] },
       ] },
     ] },
     { type: 'row', items: [
-      { type: 'button', label: '导出', tone: 'primary' },
-      { type: 'button', label: '删除', tone: 'danger' },
-      { type: 'badge', label: '实时', tone: 'success' },
+      { type: 'button', label: 'Export', tone: 'primary' },
+      { type: 'button', label: 'Delete', tone: 'danger' },
+      { type: 'badge', label: 'Live', tone: 'success' },
     ] },
   ],
 }
 
 function fenced(spec: unknown): string {
-  return `说明文字在前。\n\n\`\`\`dsh-ui\n${JSON.stringify(spec, null, 2)}\n\`\`\`\n\n说明文字在后。`
+  return `Prose before.\n\n\`\`\`dsh-ui\n${JSON.stringify(spec, null, 2)}\n\`\`\`\n\nProse after.`
 }
 
 describe('GenUI fence rendering', () => {
@@ -49,17 +49,17 @@ describe('GenUI fence rendering', () => {
     const block = container.querySelector('[data-genui]')
     expect(block).not.toBeNull()
     // The banner title comes from the spec.
-    expect(block?.textContent).toContain('订单概览')
+    expect(block?.textContent).toContain('Order overview')
     // Prose still surrounds the block.
-    expect(container.textContent).toContain('说明文字在前')
-    expect(container.textContent).toContain('说明文字在后')
+    expect(container.textContent).toContain('Prose before')
+    expect(container.textContent).toContain('Prose after')
     // Stats rendered.
     expect(screen.getByText('¥128,430')).toBeTruthy()
     expect(screen.getByText('+12.4%')).toBeTruthy()
     // Chart bars rendered (3 data points).
     expect(container.querySelectorAll('[class*="barFill"]')).toHaveLength(3)
     // Buttons rendered and interactive.
-    const exportBtn = screen.getByRole('button', { name: '导出' })
+    const exportBtn = screen.getByRole('button', { name: 'Export' })
     expect(exportBtn).toBeTruthy()
   })
 
@@ -69,7 +69,7 @@ describe('GenUI fence rendering', () => {
     expect(tabs).toHaveLength(2)
     expect(container.textContent).toContain('#1042')
     fireEvent.click(tabs[1]!)
-    expect(container.textContent).toContain('无待处理退款')
+    expect(container.textContent).toContain('No pending refunds')
     expect(container.textContent).not.toContain('#1042')
   })
 
@@ -102,7 +102,7 @@ describe('GenUI fence rendering', () => {
   it('keeps an incomplete fence as code while streaming', () => {
     // A fence whose body is still growing (no closing ``` yet) parses as an
     // incomplete spec and stays a code block until it closes.
-    const { container } = render(<MarkdownText text={'```dsh-ui\n{"title":"还在写' } streaming />)
+    const { container } = render(<MarkdownText text={'```dsh-ui\n{"title":"still writ' } streaming />)
     expect(container.querySelector('[data-genui]')).toBeNull()
     expect(container.querySelector('pre')).not.toBeNull()
   })
@@ -140,7 +140,7 @@ describe('GenUI chart skeleton (design system v2)', () => {
   it.skipIf(!hasFenceRegistry)('gives bar charts a plot area with baseline + 25/50/75% gridlines and a separate label row', () => {
     const spec = {
       items: [{ type: 'chart', data: [
-        { label: '一', value: 42 }, { label: '二', value: 58 }, { label: '三', value: 49 },
+        { label: 'one', value: 42 }, { label: 'two', value: 58 }, { label: 'three', value: 49 },
       ] }],
     }
     const { container } = render(<MarkdownText text={fenced(spec)} />)
@@ -161,8 +161,8 @@ describe('GenUI chart skeleton (design system v2)', () => {
   it.skipIf(!hasFenceRegistry)('renders per-bar values in grouped charts inside the plot', () => {
     const spec = {
       items: [{ type: 'chart', kind: 'bars', series: [
-        { label: 'A', data: [{ label: '一', value: 30 }, { label: '二', value: 40 }] },
-        { label: 'B', data: [{ label: '一', value: 60 }, { label: '二', value: 20 }] },
+        { label: 'A', data: [{ label: 'one', value: 30 }, { label: 'two', value: 40 }] },
+        { label: 'B', data: [{ label: 'one', value: 60 }, { label: 'two', value: 20 }] },
       ] }],
     }
     const { container } = render(<MarkdownText text={fenced(spec)} />)
@@ -179,7 +179,7 @@ describe('GenUI chart skeleton (design system v2)', () => {
   it.skipIf(!hasFenceRegistry)('renders a Y axis with four ticks and gridlines on line charts', () => {
     const spec = {
       items: [{ type: 'chart', kind: 'line', data: [
-        { label: '一', value: 10 }, { label: '二', value: 30 }, { label: '三', value: 20 },
+        { label: 'one', value: 10 }, { label: 'two', value: 30 }, { label: 'three', value: 20 },
       ] }],
     }
     const { container } = render(<MarkdownText text={fenced(spec)} />)

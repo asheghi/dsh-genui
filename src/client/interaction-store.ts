@@ -6,7 +6,7 @@
  * LOCAL-FIRST persistence: a ```dsh-ui block's interactive state survives
  * page refresh and session reopen because it is keyed by
  * `session + block slot + content fingerprint` — replaying the same message
- * (same content) restores the exact state, while NEW content (换题, edited
+ * (same content) restores the exact state, while NEW content (new question, edited
  * spec) gets a fresh key and thus a clean slate. Different messages never
  * share state because their content fingerprints differ.
  *

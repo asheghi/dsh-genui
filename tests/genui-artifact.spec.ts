@@ -8,10 +8,10 @@ import type { GenuiSpec } from '../src/client/spec.ts'
 describe('GenUI artifact format', () => {
   it('normalizes, removes DSH routing fields, and round-trips durable presentation state', () => {
     const source = {
-      title: '销售数据中心', panel: true, append: true,
+      title: 'Sales data center', panel: true, append: true,
       items: [{ type: 'input', id: 'keyword', value: 'phone' }],
     } as GenuiSpec
-    const artifact = createGenuiArtifact(source, { fields: { keyword: 'iPhone' }, locked: false }, { locale: 'zh', theme: 'dark' })
+    const artifact = createGenuiArtifact(source, { fields: { keyword: 'iPhone' }, locked: false }, { locale: 'en', theme: 'dark' })
     expect(artifact.spec).not.toHaveProperty('panel')
     expect(artifact.spec).not.toHaveProperty('append')
     expect(parseGenuiArtifact(JSON.parse(serializeGenuiArtifact(artifact)))).toEqual(artifact)

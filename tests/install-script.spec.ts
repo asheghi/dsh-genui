@@ -83,7 +83,7 @@ describe('install.sh skill sync safety', { timeout: 30_000 }, () => {
     const { status, stdout } = e.run()
     expect(status).toBe(0)
     expect(readFileSync(e.dest, 'utf8')).toBe(PACKAGE_SKILL)
-    expect(stdout).toContain('skill 已同步')
+    expect(stdout).toContain('skill synced to')
   })
 
   it('syncs BOTH skill roots (dshHome and agentsHome)', () => {
@@ -105,7 +105,7 @@ describe('install.sh skill sync safety', { timeout: 30_000 }, () => {
     symlinkSync(sentinel, e.agentsDest)
     const { status, stdout } = e.run()
     expect(status).not.toBe(0)
-    expect(stdout).toContain('指向其他文件的符号链接')
+    expect(stdout).toContain('is a symlink to another file')
     expect(readFileSync(sentinel, 'utf8')).toBe('SENTINEL-AGENTS\n')
   })
 
@@ -125,7 +125,7 @@ describe('install.sh skill sync safety', { timeout: 30_000 }, () => {
     symlinkSync(pkgSkill, e.dest)
     const { status, stdout } = e.run()
     expect(status).toBe(0)
-    expect(stdout).toContain('符号链接指向同一文件')
+    expect(stdout).toContain('is a symlink to the same file')
     expect(readFileSync(e.dest, 'utf8')).toBe(PACKAGE_SKILL)
   })
 
@@ -138,7 +138,7 @@ describe('install.sh skill sync safety', { timeout: 30_000 }, () => {
     symlinkSync(sentinel, e.dest)
     const { status, stdout } = e.run()
     expect(status).not.toBe(0)
-    expect(stdout).toContain('指向其他文件的符号链接')
+    expect(stdout).toContain('is a symlink to another file')
     // the critical property: nothing was written through the link
     expect(readFileSync(sentinel, 'utf8')).toBe('SENTINEL-12345\n')
     expect(readFileSync(e.dest, 'utf8')).toBe('SENTINEL-12345\n') // still the link's target
@@ -150,7 +150,7 @@ describe('install.sh skill sync safety', { timeout: 30_000 }, () => {
     symlinkSync(join(e.root, 'nowhere', 'missing.md'), e.dest)
     const { status, stdout } = e.run()
     expect(status).not.toBe(0)
-    expect(stdout).toContain('悬空符号链接')
+    expect(stdout).toContain('is a dangling symlink')
   })
 
   it('safely fails when the target is a directory', () => {
@@ -158,7 +158,7 @@ describe('install.sh skill sync safety', { timeout: 30_000 }, () => {
     mkdirSync(e.dest, { recursive: true })
     const { status, stdout } = e.run()
     expect(status).not.toBe(0)
-    expect(stdout).toContain('是目录')
+    expect(stdout).toContain('is a directory')
   })
 
   it('fails loudly when the installed package lacks SKILL.md (incomplete install)', () => {
@@ -166,7 +166,7 @@ describe('install.sh skill sync safety', { timeout: 30_000 }, () => {
     rmSync(join(e.profile, 'node_modules', '@changfenhuang', 'dsh-genui', 'SKILL.md'))
     const { status, stdout } = e.run()
     expect(status).not.toBe(0)
-    expect(stdout).toContain('无法定位已安装包内的 SKILL.md')
+    expect(stdout).toContain('cannot locate SKILL.md inside the installed package')
   })
 })
 
@@ -175,7 +175,7 @@ describe('install.sh argument safety', { timeout: 30_000 }, () => {
     const e = env()
     const { status, stdout } = e.run('web; rm -rf /tmp/x')
     expect(status).not.toBe(0)
-    expect(stdout).toContain('非法的 profile 名')
+    expect(stdout).toContain('illegal profile name')
   })
 
   it('rejects a profile name with path separators', () => {

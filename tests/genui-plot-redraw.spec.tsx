@@ -14,7 +14,7 @@ function fenced(spec: unknown): string {
 describe.skipIf(!hasFenceRegistry)('plot slider live re-render', () => {
   it('redraws the curve when a parameter slider changes', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
-      { type: 'plot', title: '可调', series: [{ expr: 'a*x', label: 'line', params: [{ name: 'a', value: 1, min: 0, max: 5 }] }] },
+      { type: 'plot', title: 'Tunable', series: [{ expr: 'a*x', label: 'line', params: [{ name: 'a', value: 1, min: 0, max: 5 }] }] },
     ] })} />)
     const path = container.querySelector('[data-genui-plot] polyline')!
     const before = path.getAttribute('d')!
@@ -29,14 +29,14 @@ describe.skipIf(!hasFenceRegistry)('plot slider live re-render', () => {
 describe.skipIf(!hasFenceRegistry)('plot implicit parameters', () => {
   it('renders a plot with undeclared single-letter params (defaults to 1)', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
-      // a*sin(b*x) 没带 params 声明 —— 应该能画（a=1, b=1）
-      { type: 'plot', title: '隐式参数', series: [{ expr: 'a*sin(b*x)' }] },
+      // a*sin(b*x) with no params declaration: still plottable (a=1, b=1)
+      { type: 'plot', title: 'Implicit parameters', series: [{ expr: 'a*sin(b*x)' }] },
     ] })} />)
     expect(container.querySelector('[data-genui-plot]')).not.toBeNull()
     const poly = container.querySelector('[data-genui-plot] polyline')
     expect(poly).not.toBeNull()
     expect(poly!.getAttribute('points')).not.toBe('')
-    // 不显示滑块（没有显式 params 声明）
+    // no sliders (no explicit params declaration)
     expect(container.querySelector('[data-genui-plot] input[type="range"]')).toBeNull()
   })
 
@@ -46,6 +46,6 @@ describe.skipIf(!hasFenceRegistry)('plot implicit parameters', () => {
     ] })} />)
     expect(container.querySelector('[data-genui-plot]')).not.toBeNull()
     expect(container.querySelector('[data-genui-plot] polyline')).toBeNull()
-    expect(container.textContent).toContain('无法绘制')
+    expect(container.textContent).toContain('cannot plot')
   })
 })

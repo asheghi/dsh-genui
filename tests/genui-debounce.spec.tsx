@@ -30,15 +30,15 @@ function renderWithActions(spec: GenuiSpec, actions: Array<[string, Record<strin
 describe('action dispatch', () => {
   it('delivers every discrete interaction immediately — rapid repeats are not collapsed', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
-    renderWithActions({ items: [{ type: 'button', label: '刷新', action: 'refresh' }] }, actions)
+    renderWithActions({ items: [{ type: 'button', label: 'Refresh', action: 'refresh' }] }, actions)
     const button = document.querySelector('button')!
     fireEvent.click(button)
     fireEvent.click(button)
     fireEvent.click(button)
     expect(actions).toEqual([
-      ['refresh', { type: 'button', label: '刷新' }],
-      ['refresh', { type: 'button', label: '刷新' }],
-      ['refresh', { type: 'button', label: '刷新' }],
+      ['refresh', { type: 'button', label: 'Refresh' }],
+      ['refresh', { type: 'button', label: 'Refresh' }],
+      ['refresh', { type: 'button', label: 'Refresh' }],
     ])
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(actions).toHaveLength(3) // the window adds nothing on top
@@ -59,7 +59,7 @@ describe('action dispatch', () => {
 
   it('collapses a slider drag into one action with the last payload', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
-    renderWithActions({ items: [{ type: 'slider', label: '透明度', min: 0, max: 100, value: 10, action: 'opacity' }] }, actions)
+    renderWithActions({ items: [{ type: 'slider', label: 'Opacity', min: 0, max: 100, value: 10, action: 'opacity' }] }, actions)
     const slider = document.querySelector<HTMLInputElement>('input[type="range"]')!
     for (const v of [20, 40, 80]) fireEvent.change(slider, { target: { value: String(v) } })
     expect(actions).toHaveLength(0) // nothing fired inside the window
@@ -70,8 +70,8 @@ describe('action dispatch', () => {
   it('keeps distinct sliders sharing an action name independent via their ids', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     renderWithActions({ items: [
-      { type: 'slider', label: '红', min: 0, max: 255, id: 'r', value: 0, action: 'color' },
-      { type: 'slider', label: '绿', min: 0, max: 255, id: 'g', value: 0, action: 'color' },
+      { type: 'slider', label: 'Red', min: 0, max: 255, id: 'r', value: 0, action: 'color' },
+      { type: 'slider', label: 'Green', min: 0, max: 255, id: 'g', value: 0, action: 'color' },
     ] }, actions)
     const sliders = document.querySelectorAll<HTMLInputElement>('input[type="range"]')
     fireEvent.change(sliders[0]!, { target: { value: '200' } })
@@ -83,7 +83,7 @@ describe('action dispatch', () => {
 
   it('fires a slider again after the window elapses', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
-    renderWithActions({ items: [{ type: 'slider', label: '音量', min: 0, max: 10, value: 1, action: 'vol' }] }, actions)
+    renderWithActions({ items: [{ type: 'slider', label: 'Volume', min: 0, max: 10, value: 1, action: 'vol' }] }, actions)
     const slider = document.querySelector<HTMLInputElement>('input[type="range"]')!
     fireEvent.change(slider, { target: { value: '3' } })
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)

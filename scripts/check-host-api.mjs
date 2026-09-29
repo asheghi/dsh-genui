@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const hostRef = process.argv[2]
-assert.match(hostRef ?? '', /^dsh-v\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/, '需要明确的 DSH 发布标签')
+assert.match(hostRef ?? '', /^dsh-v\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/, 'an explicit DSH release tag is required')
 const version = hostRef.slice('dsh-v'.length)
 const pkg = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8'))
 const dshPackages = Object.keys(pkg.peerDependencies).filter(name => name.startsWith('@deepseek-ai/dsh-'))
@@ -19,15 +19,16 @@ try {
   }
   await cp(join(repoRoot, 'src'), join(checkRoot, 'src'), { recursive: true })
 
-  // pnpm 在隔离目录安装发布包，源码中的 import 由该目录的 node_modules 解析。
+  // pnpm installs the published packages into an isolated directory, and the
+  // imports in the source resolve through that directory's node_modules.
   execFileSync('pnpm', ['add', '--save-dev', '--save-exact', ...dshPackages.map(name => `${name}@${version}`)], { cwd: checkRoot, stdio: 'inherit' })
   for (const name of dshPackages) {
     const installed = JSON.parse(await readFile(join(checkRoot, 'node_modules', name, 'package.json'), 'utf8'))
-    assert.equal(installed.version, version, `${name} 必须使用 ${version} 的公开类型`)
+    assert.equal(installed.version, version, `${name} must use the public types of ${version}`)
   }
   execFileSync('pnpm', ['exec', 'tsc', '-p', 'tsconfig.json'], { cwd: checkRoot, stdio: 'inherit' })
   execFileSync('pnpm', ['exec', 'tsdown'], { cwd: checkRoot, stdio: 'inherit' })
-  console.log(`${hostRef} API typecheck 与 tsdown build 通过`)
+  console.log(`${hostRef} API typecheck and tsdown build passed`)
 } finally {
   await rm(checkRoot, { recursive: true, force: true })
 }

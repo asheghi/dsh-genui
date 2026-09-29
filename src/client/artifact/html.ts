@@ -7,7 +7,7 @@ import type { GenuiSpec } from '../spec.ts'
 
 const bundleCache = new Map<string, Promise<Uint8Array>>()
 
-/** 将二进制内容编码为不会闭合 script 标签的 Base64。 */
+/** Encode binary content as Base64 that cannot close a script tag. */
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = ''
   const chunkSize = 0x8000
@@ -17,12 +17,12 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-/** 转义 HTML 属性和标题中的文本。 */
+/** Escape text used in HTML attributes and the title. */
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
 }
 
-/** 获取并缓存构建产物字节，失败时保留可识别的导出错误。 */
+/** Fetch and cache build artifact bytes, preserving a recognizable export error on failure. */
 function cachedBundle(name: string, code: GenuiStandaloneAsset | 'runtime'): Promise<Uint8Array> {
   const existing = bundleCache.get(name)
   if (existing !== undefined) return existing
@@ -38,15 +38,15 @@ function cachedBundle(name: string, code: GenuiStandaloneAsset | 'runtime'): Pro
   return task
 }
 
-/** 创建仅存放 Base64 数据的非执行 payload 节点。 */
+/** Create a non-executable payload element holding only Base64 data. */
 function bundleElement(name: string, bytes: Uint8Array): string {
   return `<script type="application/octet-stream" data-genui-bundle="${name}">${bytesToBase64(bytes)}</script>`
 }
 
-/** 将媒体相对地址转换为导出页面所在站点的绝对地址。 */
+/** Convert relative media URLs to absolute URLs on the exported page's origin. */
 function resolveMediaUrls(spec: GenuiSpec, baseURI: string): GenuiSpec {
   const copy = structuredClone(spec)
-  /** 遍历规范中的嵌套节点和容器。 */
+  /** Walk nested nodes and containers in the spec. */
   function visit(value: unknown): void {
     if (Array.isArray(value)) {
       for (const item of value) visit(item)
@@ -69,7 +69,7 @@ function resolveMediaUrls(spec: GenuiSpec, baseURI: string): GenuiSpec {
   return copy
 }
 
-/** 返回执行内嵌 bundle 的静态启动代码。 */
+/** Return the static bootstrap code that runs the embedded bundles. */
 function bootstrapSource(): string {
   return `
 async function loadBundle(element) {
@@ -103,7 +103,7 @@ start().catch(error => {
 `
 }
 
-/** 使用已下载的运行文件生成完整的独立 HTML 文档。 */
+/** Build the complete standalone HTML document from the downloaded runtime files. */
 export function createStandaloneHtmlDocument(
   artifact: GenuiArtifactV1,
   bundles: ReadonlyMap<string, Uint8Array>,
@@ -120,7 +120,7 @@ export function createStandaloneHtmlDocument(
   if (runtime === undefined) throw new GenuiExportError('runtime-fetch-failed', 'standalone-runtime.js: bundle unavailable')
   const csp = "default-src 'none'; script-src 'unsafe-inline' blob:; style-src 'unsafe-inline'; font-src data:; img-src 'self' data: blob: https: http:; media-src 'self' data: blob: https: http:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
   return `<!doctype html>
-<html lang="${artifact.presentation.locale === 'zh' ? 'zh-CN' : 'en'}">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -138,12 +138,12 @@ export function createStandaloneHtmlDocument(
 </html>`
 }
 
-/** 返回 artifact 所需图形引擎名称。 */
+/** Return the names of the graphics engines the artifact requires. */
 function artifactPortabilityAssets(artifact: GenuiArtifactV1): GenuiStandaloneAsset[] {
   return analyzeGenuiPortability(artifact.spec).requiredAssets
 }
 
-/** 获取独立运行文件及规格实际使用的图形引擎，生成单文件 HTML。 */
+/** Fetch the standalone runtime files plus the graphics engines the spec actually uses, and build a single-file HTML. */
 export async function buildStandaloneHtml(rawArtifact: GenuiArtifactV1): Promise<string> {
   const artifact = parseGenuiArtifact(rawArtifact)
   if (artifact === null) throw new GenuiExportError('artifact-invalid', 'invalid GenUI artifact')

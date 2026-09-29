@@ -13,7 +13,7 @@ interface ArtifactExportMenuProps {
   getArtifact: () => ReturnType<typeof createGenuiArtifact>
 }
 
-/** 提供 JSON 和 HTML 的本地化导出菜单。 */
+/** Localized export menu for JSON and HTML. */
 function ArtifactExportMenu({ getArtifact }: ArtifactExportMenuProps) {
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -37,7 +37,7 @@ function ArtifactExportMenu({ getArtifact }: ArtifactExportMenuProps) {
     }
   }, [open])
 
-  /** 执行用户选择的下载并更新辅助说明。 */
+  /** Run the download the user selected and update the status message. */
   const exportAs = async (format: 'html' | 'json'): Promise<void> => {
     setOpen(false)
     setErrorMessage('')
@@ -83,7 +83,7 @@ export interface ExportableGenuiBlockProps extends GenuiBlockProps {
   exportEnabled?: boolean
 }
 
-/** 在完成态 GenUI 外层显示 artifact 导出菜单。 */
+/** Show the artifact export menu over a completed GenUI block. */
 export function ExportableGenuiBlock(props: ExportableGenuiBlockProps) {
   const stateRef = useRef<BlockInteractionState | undefined>(undefined)
   const captureState = useCallback((state: BlockInteractionState) => {

@@ -72,13 +72,13 @@ function panelActionSend(ctx: Context, sessionId: SessionId): GenuiPanelInjected
       if (conversation === undefined) return
       const payloadText = Object.keys(payload).length === 0
         ? ''
-        : ` 组件数据: ${JSON.stringify(payload)}`
-      void conversation.send(`[genui-action] ${action}。用户刚刚在面板中触发了动作 "${action}"，请根据组件数据执行相应操作，只输出一个 panel:true 的 dsh-ui 围栏来更新面板，回复文本至多一行 10 字以内的确认（如"已刷新"），不要解释、不要普通围栏。${payloadText}`).catch((err: unknown) => {
+        : ` Component data: ${JSON.stringify(payload)}`
+      void conversation.send(`[genui-action] ${action}. The user just triggered the action "${action}" in the panel; act on the component data accordingly, and emit only one panel:true dsh-ui fence to update the panel. Reply with at most one line of confirmation of 10 words or fewer (e.g. "Refreshed") — no explanation, no ordinary fence.${payloadText}`).catch((err: unknown) => {
         // A failed prompt (session gone, agent busy) drops the action; the
         // panel stays interactive — the component is not disabled. Log the
         // failure WITHOUT the action payload or any secret values (the
         // message may contain field content).
-        console.warn(`[genui] 面板动作 "${action}" 发送失败（session ${sessionId}）：`, err instanceof Error ? err.message : String(err))
+        console.warn(`[genui] Failed to send panel action "${action}" (session ${sessionId}):`, err instanceof Error ? err.message : String(err))
       })
     },
     insertTemplate: (text) => {
@@ -94,17 +94,17 @@ function panelActionSend(ctx: Context, sessionId: SessionId): GenuiPanelInjected
   }
 }
 
-/** Relay a `/panel <指令>` instruction to the model: the scoped conversation
+/** Relay a `/panel <instruction>` instruction to the model: the scoped conversation
  * send with an explicit panel-only directive, so the model replaces the
  * default panel with content tailored to the request. */
 function sendPanelInstruction(ctx: Context, sessionId: SessionId, instruction: string): void {
   const scoped = ctx.sessions.scope(sessionId)
   const conversation = scoped?.get('conversation') as IConversation | undefined
   if (conversation === undefined) return
-  void conversation.send(`用户执行了 /panel 并请求：${instruction}。请只输出一个 panel:true 的 dsh-ui 围栏来更新会话面板，内容按请求定制；回复文本至多一行 10 字以内的确认（如"已更新"），不要解释、不要普通围栏。`).catch((err: unknown) => {
+  void conversation.send(`The user ran /panel and requested: ${instruction}. Emit only one panel:true dsh-ui fence to update the session panel, tailored to the request; reply with at most one line of confirmation of 10 words or fewer (e.g. "Updated") — no explanation, no ordinary fence.`).catch((err: unknown) => {
     // A failed prompt drops the instruction; the default panel stays
     // visible. Log without the instruction text (may contain secrets).
-    console.warn(`[genui] /panel 指令发送失败（session ${sessionId}）：`, err instanceof Error ? err.message : String(err))
+    console.warn(`[genui] Failed to send /panel instruction (session ${sessionId}):`, err instanceof Error ? err.message : String(err))
   })
 }
 
@@ -119,8 +119,8 @@ function sendInlineGenuiAction(ctx: Context, sessionId: SessionId, action: strin
   if (conversation === undefined) return
   const payloadText = Object.keys(payload).length === 0
     ? ''
-    : ` 组件数据: ${JSON.stringify(payload)}`
-  void conversation.send(`[genui-action] ${action}。用户刚刚在界面中触发了动作 "${action}"，请根据组件数据执行相应操作，并用 dsh-ui 输出更新后的界面。${payloadText}`).catch(() => {
+    : ` Component data: ${JSON.stringify(payload)}`
+  void conversation.send(`[genui-action] ${action}. The user just triggered the action "${action}" in the interface; act on the component data accordingly and use dsh-ui to output the updated interface.${payloadText}`).catch(() => {
     // A failed prompt (session gone, agent busy) drops the action;
     // the UI stays interactive — the component is not disabled.
   })
@@ -183,7 +183,7 @@ export function apply(ctx: Context): () => void {
   // /panel slash command: a deterministic, client-side entry point that
   // opens the panel dock (publishes the default spec + expand request),
   // clears it (/panel clear), or relays an instruction to the model
-  // (/panel <指令>) so the panel gets tailored content.
+  // (/panel <instruction>) so the panel gets tailored content.
   //
   // inputTriggers is subscribed via cordis OPTIONAL injection (ctx.inject),
   // NOT a one-shot ctx.get() at apply time: the service is typically

@@ -2,8 +2,8 @@ import { MarkdownText as PrimitiveMarkdownText } from '@deepseek-ai/dsh-client-u
 import type { ComponentProps } from 'react'
 
 const MARKDOWN_LABELS = {
-  code: { copyLabel: '复制', copiedLabel: '复制成功' },
-  footnotes: '脚注',
+  code: { copyLabel: 'Copy', copiedLabel: 'Copied' },
+  footnotes: 'Footnotes',
 } satisfies NonNullable<ComponentProps<typeof PrimitiveMarkdownText>['labels']>
 
 /** Render MarkdownText with the rc.1 labels required by the host primitive. */

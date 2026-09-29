@@ -21,7 +21,7 @@ describe('plot view affordances', () => {
     const svg = container.querySelector('[data-genui-plot] svg') as Element
     mockRect(svg)
     // Initial state: hint only, no reset affordance.
-    expect(container.textContent).toContain('滚轮缩放')
+    expect(container.textContent).toContain('scroll to zoom')
     expect(container.querySelector('[class*="plotReset"]')).toBeNull()
 
     act(() => {
@@ -35,7 +35,7 @@ describe('plot view affordances', () => {
     expect(reset).not.toBeNull()
 
     fireEvent.click(reset)
-    expect(container.textContent).toContain('滚轮缩放')
+    expect(container.textContent).toContain('scroll to zoom')
     expect(container.querySelector('[class*="plotReset"]')).toBeNull()
   })
 })

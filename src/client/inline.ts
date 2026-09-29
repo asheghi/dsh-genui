@@ -48,7 +48,7 @@ export function renderInline(text: string, allowLinks = true, depth = 0): ReactN
       }
     }
     if (openingStart > fenceEnd) segments.push(renderInline(text.slice(fenceEnd, openingStart), allowLinks, depth))
-    // 围栏及其中的代码、换行和行内标记都保持原文。
+    // The fence and the code, newlines, and inline markers inside it stay verbatim.
     fenceEnd = closingEnd ?? text.length
     segments.push(text.slice(openingStart, fenceEnd))
     if (closingEnd === undefined) break

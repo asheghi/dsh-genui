@@ -57,7 +57,7 @@ vi.mock('three', () => {
 })
 
 const SCENE: GenuiScene3D = {
-  title: '立方体',
+  title: 'Cube',
   meshes: [{ shape: 'box', size: [1, 1, 1], color: '#6ea8ff', position: [0, 0, 0] }],
 }
 

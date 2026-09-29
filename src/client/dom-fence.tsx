@@ -133,7 +133,7 @@ function looksLikeGenuiInProgress(raw: string): boolean {
  *  code block returns. */
 function GenuiSkeleton() {
   return (
-    <div className={css.skeleton} role="status" aria-label="正在生成界面">
+    <div className={css.skeleton} role="status" aria-label="Generating interface">
       <span className={css.skeletonTitle} />
       <span className={css.skeletonBars}>
         <span style={{ width: '32%' }} />
@@ -188,7 +188,7 @@ function infostringOf(block: Element): 'dsh-ui' | 'svg' | null {
   return null
 }
 
-const GENERIC_CODE_LABELS = new Set(['Code', 'Code block', '代码块'])
+const GENERIC_CODE_LABELS = new Set(['Code', 'Code block', '\u4ee3\u7801\u5757'])
 
 /** Read a language that the host still exposes in its CodeBlock banner. */
 function domLanguageOf(block: Element): string | null {
@@ -210,11 +210,11 @@ function labelTextOf(block: Element): string {
   return ''
 }
 
-/** 仅在通用 CodeBlock 的完整 JSON 通过现有 GenUI 规范时恢复丢失的围栏语言。
+/** Recover a lost fence language only when a generic CodeBlock's complete JSON passes the existing GenUI spec.
  *
- * @param block - 宿主提供的代码块元素。
- * @param raw - 未修改的围栏正文。
- * @returns 正文能按原有 GenUI 规范直接识别时返回 true。
+ * @param block - Host-provided code block element.
+ * @param raw - Unmodified fence body.
+ * @returns True when the body is directly recognizable under the existing GenUI spec.
  */
 function isGenericGenuiFence(block: Element, raw: string): boolean {
   const row = block.closest<HTMLElement>(ASSISTANT_FLOW_ROW)
@@ -322,7 +322,7 @@ function findFenceCandidates(scope: ParentNode = document): HTMLElement[] {
     // renderer install so future drift is never silent again.
     if (!driftWarned) {
       driftWarned = true
-      console.warn('[dsh-genui] 围栏表面类名未被已知选择器命中（宿主 DOM 漂移），已按 label+pre 结构识别 dsh-ui 围栏')
+      console.warn('[dsh-genui] Fence surface class names matched no known selector (host DOM drift); dsh-ui fences identified by label+pre structure instead')
     }
     out.push(surface)
     seen.add(surface)
@@ -341,7 +341,7 @@ function warnImplausibleSurface(surface: Element): void {
   const pres = surface.querySelectorAll('pre')
   const tags = [...surface.querySelectorAll(BLOCK_CONTENT_SELECTOR)]
     .filter(el => !el.closest('pre')).map(el => el.tagName.toLowerCase())
-  console.warn(`[dsh-genui] 跳过带 dsh-ui 标签但疑似消息容器的节点：pre=${pres.length}, outside-code=${[...new Set(tags)].join(',') || 'none'}；保留原文，防止隐藏整条消息（issue #19）`)
+  console.warn(`[dsh-genui] Skipped a node tagged dsh-ui but likely a message container: pre=${pres.length}, outside-code=${[...new Set(tags)].join(',') || 'none'}; leaving the source untouched to avoid hiding the whole message (issue #19)`)
 }
 
 /** Root factory seam (tests / tuning): the DOM channel creates one React root
@@ -725,11 +725,11 @@ export function installDomFenceRenderer(
   }
 
   /**
-   * 通过当前宿主会话发送 DOM 通道 action。
+   * Send a DOM-channel action through the current host session.
    *
-   * @param block - 触发 action 的围栏元素
-   * @param action - 组件声明的 action 名称
-   * @param payload - 组件产生的交互数据
+   * @param block - Fence element that triggered the action
+   * @param action - Action name declared by the component
+   * @param payload - Interaction data produced by the component
    */
   function sendActionForBlock(block: Element, action: string, payload: Record<string, unknown>): void {
     const sessionId = sessionIdOf()
@@ -748,8 +748,8 @@ export function installDomFenceRenderer(
     const sourceLanguage = domLanguage === null ? sourceLanguages.get(block) : undefined
     const language = domLanguage ?? sourceLanguage
     const raw = rawOf(block)
-    // DSH 0.1.7-alpha.2 会在最终 DOM 隐去不支持高亮的语言；公开 ChatSnapshot 的原始 Markdown 是 language 来源。
-    // 内容识别只在 source 暂不可用且 assistant 已结束时兜底，不覆盖已确认的 language 或无 language fence。
+    // DSH 0.1.7-alpha.2 hides languages without syntax-highlight support in the final DOM; the raw Markdown of the public ChatSnapshot is the language source.
+    // Content detection is only a fallback when source is unavailable and the assistant has finished; it never overrides a confirmed language or a language-less fence.
     const genericGenui = language === undefined && settled && isGenericGenuiFence(block, raw)
     if (language !== 'dsh-ui' && language !== 'svg' && !genericGenui) return
     if (!settled && language !== 'dsh-ui') return

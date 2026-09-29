@@ -32,29 +32,29 @@ describe('textarea durable value priority', () => {
     const stateKey = 'textarea-durable-value-priority'
     const spec = {
       items: [
-        { type: 'textarea', label: '简介', id: 'bio', value: '默认简介' },
-        { type: 'submit', label: '发送', action: 'send' },
+        { type: 'textarea', label: 'Bio', id: 'bio', value: 'Default bio' },
+        { type: 'submit', label: 'Send', action: 'send' },
       ],
     }
     const onAction = vi.fn()
 
     renderBlock(spec, stateKey, onAction)
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    expect(textarea.value).toBe('默认简介')
+    expect(textarea.value).toBe('Default bio')
 
-    fireEvent.change(textarea, { target: { value: '用户简介' } })
+    fireEvent.change(textarea, { target: { value: 'User bio' } })
     vi.advanceTimersByTime(400)
 
     cleanup()
     renderBlock(spec, stateKey, onAction)
 
     const restored = screen.getByRole('textbox') as HTMLTextAreaElement
-    expect(restored.value).toBe('用户简介')
+    expect(restored.value).toBe('User bio')
 
-    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({
-      fields: { bio: '用户简介' },
+      fields: { bio: 'User bio' },
     }))
   })
 
@@ -62,34 +62,34 @@ describe('textarea durable value priority', () => {
     const stateKey = 'textarea-durable-value-cleared'
     const spec = {
       items: [
-        { type: 'textarea', label: '简介', id: 'bio', value: '默认简介' },
-        { type: 'input', label: '昵称', id: 'name' },
-        { type: 'submit', label: '发送', action: 'send' },
+        { type: 'textarea', label: 'Bio', id: 'bio', value: 'Default bio' },
+        { type: 'input', label: 'Nickname', id: 'name' },
+        { type: 'submit', label: 'Send', action: 'send' },
       ],
     }
     const onAction = vi.fn()
 
     renderBlock(spec, stateKey, onAction)
-    const textarea = screen.getByLabelText('简介') as HTMLTextAreaElement
+    const textarea = screen.getByLabelText('Bio') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '' } })
     // A non-blank sibling keeps the submit clickable while `bio` is blank, so
     // the cleared-field assertion below runs against a real submit payload.
-    fireEvent.change(screen.getByLabelText('昵称'), { target: { value: '阿米' } })
+    fireEvent.change(screen.getByLabelText('Nickname'), { target: { value: 'Ami' } })
     vi.advanceTimersByTime(400)
 
     cleanup()
     renderBlock(spec, stateKey, onAction)
 
-    const restored = screen.getByLabelText('简介') as HTMLTextAreaElement
+    const restored = screen.getByLabelText('Bio') as HTMLTextAreaElement
     expect(restored.value).toBe('')
 
-    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     // Blank values are stored durably but excluded from submit collection.
     const sendCall = onAction.mock.calls.find(([action]) => action === 'send')
     expect(sendCall).toBeDefined()
     const payload = sendCall![1] as { fields?: Record<string, string> }
-    expect(payload.fields).toEqual({ name: '阿米' })
+    expect(payload.fields).toEqual({ name: 'Ami' })
     expect(payload.fields?.bio).toBeUndefined()
   })
 })

@@ -11,7 +11,7 @@ afterEach(cleanup)
 const base: GenuiDiagram = {
   type: 'diagram',
   kind: 'architecture',
-  title: '系统架构',
+  title: 'System architecture',
   nodes: [
     { id: 'web', label: 'Web', type: 'focal', x: 40, y: 40, w: 128, h: 48, tag: 'API' },
     { id: 'db', label: 'Postgres', type: 'store', x: 240, y: 120, w: 128, h: 48, sub: 'rds:5432' },
@@ -26,7 +26,7 @@ describe('DiagramNode', () => {
     expect(svg).not.toBeNull()
     expect(svg?.getAttribute('aria-labelledby')).toBeTruthy()
     const title = container.querySelector('title')
-    expect(title?.textContent).toBe('系统架构')
+    expect(title?.textContent).toBe('System architecture')
   })
 
   it('draws both node labels and the edge label', () => {
@@ -107,7 +107,7 @@ describe('DiagramNode', () => {
     const spec: GenuiDiagram = {
       type: 'diagram',
       kind: 'architecture',
-      title: '带分组的架构',
+      title: 'Architecture with groups',
       zones: [
         { label: 'FRONTEND', x: 40, y: 40, w: 200, h: 140 },
         { label: 'DATA', x: 280, y: 40, w: 200, h: 140 },

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // GenUI v1.1 components: plot (safe math), callout, steps, keyvalue, and the
-// 收编 blocks diff/json/code render from a ```dsh-ui fence.
+// absorbed diff/json/code blocks render from a ```dsh-ui fence.
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { hasFenceRegistry } from './helpers/fence-host'
@@ -54,7 +54,7 @@ describe('SafeMath evaluator', () => {
 describe('GenUI v1.1 components', () => {
   it.skipIf(!hasFenceRegistry)('renders a plot with multiple series and a legend', () => {
     render(<MarkdownText text={fenced({
-      title: '函数图',
+      title: 'Function plot',
       items: [{ type: 'plot', title: 'sin vs cos', xMin: -3, xMax: 3, series: [
         { expr: 'sin(x)', label: 'sin' },
         { expr: 'cos(x)', label: 'cos', color: '#ff6b6b' },
@@ -69,48 +69,49 @@ describe('GenUI v1.1 components', () => {
   it.skipIf(!hasFenceRegistry)('renders an empty plot fallback for an invalid expression', () => {
     render(<MarkdownText text={fenced({ items: [{ type: 'plot', series: [{ expr: 'bogus(x)' }] }] })} />)
     expect(document.querySelector('[data-genui-plot]')).not.toBeNull()
-    expect(document.body.textContent).toContain('无法绘制')
+    // The fallback echoes the offending expression instead of drawing a line.
+    expect(document.body.textContent).toContain('bogus(x)')
   })
 
   it.skipIf(!hasFenceRegistry)('renders callout with tone', () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'callout', tone: 'warning', title: '注意', content: '磁盘即将写满' },
+      { type: 'callout', tone: 'warning', title: 'Heads up', content: 'Disk almost full' },
     ] })} />)
-    expect(screen.getByText('注意')).toBeTruthy()
-    expect(screen.getByText('磁盘即将写满')).toBeTruthy()
+    expect(screen.getByText('Heads up')).toBeTruthy()
+    expect(screen.getByText('Disk almost full')).toBeTruthy()
     expect(document.querySelector('[data-genui-callout]')).not.toBeNull()
   })
 
   it.skipIf(!hasFenceRegistry)('renders steps with completion state', () => {
     render(<MarkdownText text={fenced({ items: [
       { type: 'steps', current: 2, steps: [
-        { title: '解析', desc: '读取输入' },
-        { title: '生成', desc: '产出结果' },
-        { title: '验证', desc: '运行测试' },
+        { title: 'Parse', desc: 'Read the input' },
+        { title: 'Generate', desc: 'Produce the result' },
+        { title: 'Verify', desc: 'Run the tests' },
       ] },
     ] })} />)
-    expect(screen.getByText('解析')).toBeTruthy()
-    expect(screen.getByText('验证')).toBeTruthy()
+    expect(screen.getByText('Parse')).toBeTruthy()
+    expect(screen.getByText('Verify')).toBeTruthy()
     expect(document.querySelectorAll('ol li')).toHaveLength(3)
     expect(document.querySelectorAll('li').length).toBe(3)
   })
 
   it.skipIf(!hasFenceRegistry)('renders keyvalue pairs', () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'keyvalue', pairs: [{ key: '版本', value: 'v2.4.1' }, { key: '模式', value: 'production' }] },
+      { type: 'keyvalue', pairs: [{ key: 'Version', value: 'v2.4.1' }, { key: 'Mode', value: 'production' }] },
     ] })} />)
-    expect(screen.getByText('版本')).toBeTruthy()
+    expect(screen.getByText('Version')).toBeTruthy()
     expect(screen.getByText('v2.4.1')).toBeTruthy()
   })
 
-  it('收编 diff renders an inline diff', () => {
+  it('absorbed diff renders an inline diff', () => {
     render(<MarkdownText text={fenced({ items: [
       { type: 'diff', diffs: [{ path: 'a.ts', oldText: 'const x = 1', newText: 'const x = 2' }] },
     ] })} />)
     expect(document.body.textContent).toContain('a.ts')
   })
 
-  it('收编 json renders a tree', () => {
+  it('absorbed json renders a tree', () => {
     render(<MarkdownText text={fenced({ items: [
       { type: 'json', value: { name: 'dsh', version: '0.0.1', tags: ['a', 'b'] } },
     ] })} />)
@@ -118,7 +119,7 @@ describe('GenUI v1.1 components', () => {
     expect(document.body.textContent).toContain('version')
   })
 
-  it('收编 code renders a highlighted code block', () => {
+  it('absorbed code renders a highlighted code block', () => {
     render(<MarkdownText text={fenced({ items: [
       { type: 'code', lang: 'ts', code: 'export const x = 42' },
     ] })} />)

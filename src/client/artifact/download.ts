@@ -2,13 +2,13 @@ import { GenuiExportError, type GenuiArtifactV1 } from './types.ts'
 import { serializeGenuiArtifact } from './json.ts'
 import { buildStandaloneHtml } from './html.ts'
 
-/** 过滤文件名中的路径符号、控制字符和危险标点。 */
+/** Strip path separators, control characters, and unsafe punctuation from a filename. */
 export function sanitizeArtifactFilename(title: string | undefined, extension: '.html' | '.genui.json'): string {
   const base = (title ?? '').replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, '').trim().replace(/\s+/g, ' ').slice(0, 120).replace(/[. ]+$/g, '')
   return `${base || 'genui'}${extension}`
 }
 
-/** 触发浏览器下载并释放临时地址。 */
+/** Trigger a browser download and release the temporary URL. */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -21,7 +21,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-/** 下载规范化 GenUI JSON artifact。 */
+/** Download the normalized GenUI JSON artifact. */
 export function downloadGenuiArtifactJson(artifact: GenuiArtifactV1): void {
   try {
     downloadBlob(new Blob([serializeGenuiArtifact(artifact)], { type: 'application/json;charset=utf-8' }), sanitizeArtifactFilename(artifact.spec.title, '.genui.json'))
@@ -30,7 +30,7 @@ export function downloadGenuiArtifactJson(artifact: GenuiArtifactV1): void {
   }
 }
 
-/** 生成并下载独立 HTML。 */
+/** Build and download the standalone HTML. */
 export async function downloadGenuiArtifactHtml(artifact: GenuiArtifactV1): Promise<void> {
   try {
     const html = await buildStandaloneHtml(artifact)

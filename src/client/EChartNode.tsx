@@ -129,7 +129,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
       }
     }
     case 'scatter': {
-      // xAxis is 'category' so string labels (e.g. 「一月」) render correctly;
+      // xAxis is 'category' so string labels (e.g. "January") render correctly;
       // the previous `type: 'value'` xAxis could not plot non-numeric labels.
       return {
         ...base,
@@ -444,7 +444,7 @@ export function EChartNode({ node }: { node: GenuiEChart }) {
   if (status === 'error') {
     return (
       <div className={css.echartFallback} data-genui-echart>
-        <div className={css.echartErr}>ECharts 渲染失败</div>
+        <div className={css.echartErr}>ECharts render failed</div>
         {node.title !== undefined && <div className={css.echartHint}>{renderInline(node.title)}</div>}
       </div>
     )
@@ -460,7 +460,7 @@ export function EChartNode({ node }: { node: GenuiEChart }) {
         role="img"
         aria-label={node.title ?? 'ECharts chart'}
       />
-      {status === 'loading' && <div className={css.echartHint}>加载图表…</div>}
+      {status === 'loading' && <div className={css.echartHint}>Loading chart…</div>}
     </div>
   )
 }

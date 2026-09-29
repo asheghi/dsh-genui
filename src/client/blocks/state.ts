@@ -61,7 +61,7 @@ export interface AnswersState {
   /** Field ids whose value must never be persisted or collected (secrets). */
   secretFields: ReadonlySet<string>
   meta: Record<string, QuestionMeta>
-  /** True after a local grading: questions are locked until 重新作答. */
+  /** True after a local grading: questions are locked until Start over. */
   locked: boolean
   /** Bumped by every reset; radios use it as their remount key. */
   round: number

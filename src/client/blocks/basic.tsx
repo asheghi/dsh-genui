@@ -31,8 +31,8 @@ export function avatarColor(name: string): string {
 }
 
 /** Button with LOCAL click feedback: clicking an actionable button shows a
- * brief "✓ 已触发" chip so the user sees the click registered even while the
- * model round trip is in flight — no more "点了没反应" perception. The chip
+ * brief "✓ Sent" chip so the user sees the click registered even while the
+ * model round trip is in flight — no more "the click did nothing" perception. The chip
  * is purely cosmetic; the action fires through `onClick` as before. */
 export function ClickFeedbackButton({ className, disabled, onClick, children }: {
   className: string

@@ -56,10 +56,10 @@ describe('EChartNode: word cloud', () => {
 
   it('builds weighted words and loads the full engine', async () => {
     vi.mocked(createChart).mockResolvedValue(fakeInstance())
-    render(<EChartNode node={{ type: 'echart', preset: 'wordCloud', data: [{ label: '系统', value: 80 }, { label: '用户', value: 30 }] }} />)
+    render(<EChartNode node={{ type: 'echart', preset: 'wordCloud', data: [{ label: '\u7cfb\u7edf', value: 80 }, { label: '\u7528\u6237', value: 30 }] }} />)
     await vi.waitFor(() => {
       expect(createChart).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-        series: [expect.objectContaining({ type: 'wordCloud', data: [expect.objectContaining({ name: '系统', value: 80 }), expect.objectContaining({ name: '用户', value: 30 })] })],
+        series: [expect.objectContaining({ type: 'wordCloud', data: [expect.objectContaining({ name: '\u7cfb\u7edf', value: 80 }), expect.objectContaining({ name: '\u7528\u6237', value: 30 })] })],
       }), expect.anything(), 'full')
     })
   })
@@ -88,7 +88,7 @@ describe('EChartNode: error fallback', () => {
     const node: GenuiEChart = { type: 'echart', preset: 'bar', data: [{ label: 'a', value: 1 }] }
     const { container } = render(<EChartNode node={node} />)
     await vi.waitFor(() => {
-      expect(container.textContent).toContain('ECharts 渲染失败')
+      expect(container.textContent).toContain('ECharts render failed')
     }, { timeout: 3000 })
   })
 })
@@ -119,12 +119,12 @@ describe('EChartNode: option vs preset', () => {
 describe('EChartNode: title and height', () => {
   it('renders title when provided', async () => {
     vi.mocked(createChart).mockImplementation(() => Promise.resolve(fakeInstance()))
-    const node: GenuiEChart = { type: 'echart', preset: 'bar', title: '销售趋势', data: [{ label: 'a', value: 1 }] }
+    const node: GenuiEChart = { type: 'echart', preset: 'bar', title: '\u9500\u552e\u8d8b\u52bf', data: [{ label: 'a', value: 1 }] }
     const { container } = render(<EChartNode node={node} />)
     await vi.waitFor(() => {
       expect(container.querySelector('[data-genui-echart]')).not.toBeNull()
     })
-    expect(container.textContent).toContain('销售趋势')
+    expect(container.textContent).toContain('\u9500\u552e\u8d8b\u52bf')
   })
 
   it('applies custom height to canvas', async () => {
@@ -153,13 +153,13 @@ describe('EChartNode: title and height', () => {
 describe('EChartNode: accessibility', () => {
   it('renders role=img and aria-label with title', async () => {
     vi.mocked(createChart).mockImplementation(() => Promise.resolve(fakeInstance()))
-    const node: GenuiEChart = { type: 'echart', preset: 'bar', title: '图表', data: [{ label: 'a', value: 1 }] }
+    const node: GenuiEChart = { type: 'echart', preset: 'bar', title: '\u56fe\u8868', data: [{ label: 'a', value: 1 }] }
     const { container } = render(<EChartNode node={node} />)
     await vi.waitFor(() => {
       expect(container.querySelector('[role="img"]')).not.toBeNull()
     })
     const canvas = container.querySelector('[role="img"]')
-    expect(canvas?.getAttribute('aria-label')).toBe('图表')
+    expect(canvas?.getAttribute('aria-label')).toBe('\u56fe\u8868')
   })
 
   it('renders aria-label fallback when no title', async () => {
@@ -183,7 +183,7 @@ describe('EChartNode: scatter with CJK labels', () => {
     const node: GenuiEChart = {
       type: 'echart',
       preset: 'scatter',
-      data: [{ label: '一月', value: 10 }, { label: '二月', value: 20 }],
+      data: [{ label: '\u4e00\u6708', value: 10 }, { label: '\u4e8c\u6708', value: 20 }],
     }
     render(<EChartNode node={node} />)
     await vi.waitFor(() => {
@@ -191,6 +191,6 @@ describe('EChartNode: scatter with CJK labels', () => {
     }, { timeout: 3000 })
     const opt = capturedOption as { xAxis?: { type?: string; data?: string[] } }
     expect(opt.xAxis?.type).toBe('category')
-    expect(opt.xAxis?.data).toEqual(['一月', '二月'])
+    expect(opt.xAxis?.data).toEqual(['\u4e00\u6708', '\u4e8c\u6708'])
   })
 })

@@ -175,12 +175,12 @@ const recentDays = Object.entries(stats.daily).sort().slice(-Math.max(DAYS, 1))
 if (AS_JSON) {
   console.log(JSON.stringify({ ...stats, signatures: Object.fromEntries([...stats.signatures.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30)), components: top.slice(0, 30), daily: Object.fromEntries(recentDays) }, null, 2))
 } else {
-  console.log(`GenUI 采纳度审计 · ${stats.dir}`)
-  console.log(`会话 ${stats.sessions} · 助手文本块 ${stats.assistantBlocks}（${stats.assistantChars.toLocaleString()} 字符）· 围栏 ${stats.fences}`)
-  console.log(`带围栏的文本块 ${stats.blocksWithFence}（${pct(stats.blocksWithFence, stats.assistantBlocks)} 全部 / ${pct(stats.longWithFence, stats.longBlocks)} 长回答）`)
-  console.log(`长回答（>600 字符）${stats.longBlocks}，其中带围栏 ${stats.longWithFence}`)
-  console.log(`原始 JSON 解析失败 ${stats.unparseable}（${pct(stats.unparseable, stats.fences)} 全部围栏）；仅修尾逗号后仍失败 ${stats.unparseableAfterCommaFix}（插件两级修复会再修掉大部分）`)
-  if (stats.undecodable > 0) console.log(`⚠ ${stats.undecodable} 个会话文件无法解码（安装 zstd CLI 可完整扫描）`)
+  console.log(`GenUI adoption audit · ${stats.dir}`)
+  console.log(`sessions ${stats.sessions} · assistant text blocks ${stats.assistantBlocks} (${stats.assistantChars.toLocaleString()} chars) · fences ${stats.fences}`)
+  console.log(`blocks with a fence ${stats.blocksWithFence} (${pct(stats.blocksWithFence, stats.assistantBlocks)} of all / ${pct(stats.longWithFence, stats.longBlocks)} of long answers)`)
+  console.log(`long answers (>600 chars) ${stats.longBlocks}, of which with a fence ${stats.longWithFence}`)
+  console.log(`raw JSON parse failures ${stats.unparseable} (${pct(stats.unparseable, stats.fences)} of all fences); still failing after trailing-comma repair only ${stats.unparseableAfterCommaFix} (the plugin's two-tier repair heals most of the rest)`)
+  if (stats.undecodable > 0) console.log(`⚠ ${stats.undecodable} session files could not be decoded (install the zstd CLI for a complete scan)`)
   // Layout diversity: distinct signatures + share of the most common one +
   // normalised Shannon entropy (1 = every answer a different shape).
   const sigs = [...stats.signatures.entries()].sort((a, b) => b[1] - a[1])
@@ -193,23 +193,23 @@ if (AS_JSON) {
       entropy -= p * Math.log2(p)
     }
     const maxEntropy = Math.log2(sigs.length) || 1
-    console.log(`\n版式多样性：${total} 条带围栏的回答 / ${sigs.length} 种版式签名；最常见占 ${pct(top[1], total)}；归一化熵 ${(entropy / maxEntropy).toFixed(2)}`)
-    console.log(`  hero：${stats.heroAnswers} 条回答用到（${pct(stats.heroAnswers, total)}）；违反「一条一个」的 ${stats.answersWithMultipleHeroes} 条`)
-    console.log(`  card：${stats.cardAnswers} 条回答用到（${pct(stats.cardAnswers, total)}），平均每条 ${(stats.cardTotal / total).toFixed(2)} 个；分布 0/1/2/3/4/5+ = ${[0, 1, 2, 3, 4, 5].map(k => stats.cardHistogram[k] ?? 0).join('/')}`)
-    console.log('  最常见三种：')
-    for (const [signature, count] of sigs.slice(0, 3)) console.log(`    ${String(count).padStart(4)}  ${signature || '(无组件)'}`)
+    console.log(`\nLayout diversity: ${total} fenced answers / ${sigs.length} layout signatures; most common ${pct(top[1], total)}; normalised entropy ${(entropy / maxEntropy).toFixed(2)}`)
+    console.log(`  hero: used by ${stats.heroAnswers} answers (${pct(stats.heroAnswers, total)}); violating "one per answer": ${stats.answersWithMultipleHeroes}`)
+    console.log(`  card: used by ${stats.cardAnswers} answers (${pct(stats.cardAnswers, total)}), average ${(stats.cardTotal / total).toFixed(2)} each; distribution 0/1/2/3/4/5+ = ${[0, 1, 2, 3, 4, 5].map(k => stats.cardHistogram[k] ?? 0).join('/')}`)
+    console.log('  three most common:')
+    for (const [signature, count] of sigs.slice(0, 3)) console.log(`    ${String(count).padStart(4)}  ${signature || '(no components)'}`)
   }
   const presetTotal = Object.values(stats.echartPresets).reduce((a, b) => a + b, 0)
   const echartTotal = presetTotal + stats.echartRawOption + stats.echartUnspecified
   if (echartTotal > 0) {
-    console.log(`\nechart：${echartTotal} 个节点 · preset ${presetTotal}（${pct(presetTotal, echartTotal)}）· 手写 option ${stats.echartRawOption} · 未指定 ${stats.echartUnspecified}`)
+    console.log(`\nechart: ${echartTotal} nodes · preset ${presetTotal} (${pct(presetTotal, echartTotal)}) · hand-written option ${stats.echartRawOption} · unspecified ${stats.echartUnspecified}`)
     const top = Object.entries(stats.echartPresets).sort((a, b) => b[1] - a[1]).slice(0, 6)
     if (top.length > 0) console.log('  ' + top.map(([k, v]) => `${k}:${v}`).join('  '))
   }
-  console.log('\n组件使用（Top 15）：')
+  console.log('\nComponent usage (Top 15):')
   for (const [name, count] of top.slice(0, 15)) console.log(`  ${String(count).padStart(5)}  ${name}`)
-  console.log(`\n最近 ${recentDays.length} 天：`)
+  console.log(`\nLast ${recentDays.length} days:`)
   for (const [day, value] of recentDays) {
-    console.log(`  ${day}  长回答 ${String(value.long).padStart(4)} · 带围栏 ${String(value.longWithFence).padStart(4)} (${pct(value.longWithFence, value.long)}) · 围栏 ${value.fences}`)
+    console.log(`  ${day}  long answers ${String(value.long).padStart(4)} · with fence ${String(value.longWithFence).padStart(4)} (${pct(value.longWithFence, value.long)}) · fences ${value.fences}`)
   }
 }

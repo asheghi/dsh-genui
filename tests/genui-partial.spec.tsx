@@ -35,7 +35,7 @@ describe('parsePartialGenuiSpec', () => {
   })
 
   it('extracts finished components while the array is still growing', () => {
-    // 第 1 个元素完成，第 2 个未写完 —— 应只返回第 1 个
+    // element 1 is complete, element 2 is unfinished: only element 1 comes back
     const spec = parsePartialGenuiSpec('{"items":[{"type":"text","content":"A"},{"type":"stat","labe')
     expect(spec?.items).toHaveLength(1)
     expect((spec!.items[0] as { type: string }).type).toBe('text')
@@ -43,7 +43,7 @@ describe('parsePartialGenuiSpec', () => {
 
   it('does not expose a partial nested EChart option as a finished component', () => {
     const first = '{"type":"text","content":"A"}'
-    const partialEchart = '{"type":"echart","option":{"tooltip":{"trigger":"axis"},"grid":{"left":48},"xAxis":{"type":"category","data":["质量指标记录"]}'
+    const partialEchart = '{"type":"echart","option":{"tooltip":{"trigger":"axis"},"grid":{"left":48},"xAxis":{"type":"category","data":["quality metric records"]}'
     const spec = parsePartialGenuiSpec(`{"items":[${first},${partialEchart}`)
 
     expect(spec?.items).toHaveLength(1)
@@ -51,7 +51,7 @@ describe('parsePartialGenuiSpec', () => {
   })
 
   it('does not render a single partial EChart before its component closes', () => {
-    const partial = '{"items":[{"type":"echart","option":{"tooltip":{"trigger":"axis"},"grid":{"left":48},"xAxis":{"type":"category","data":["质量指标记录"]}'
+    const partial = '{"items":[{"type":"echart","option":{"tooltip":{"trigger":"axis"},"grid":{"left":48},"xAxis":{"type":"category","data":["quality metric records"]}'
     expect(parsePartialGenuiSpec(partial)).toBeNull()
   })
 
@@ -91,24 +91,24 @@ describe('parsePartialGenuiSpec', () => {
 
 describe('partial render while streaming', () => {
   it('renders finished components from an incomplete fence while streaming', () => {
-    // 围栏没闭合、第 2 个组件没写完 —— 已完成的 text + stat 应渲染
-    const partial = '```dsh-ui\n{"items":[{"type":"text","content":"你好"},{"type":"stat","label":"进度","value":"50%"},{"type":"but'
+    // the fence is unclosed and component 2 is unfinished: the finished text + stat must render
+    const partial = '```dsh-ui\n{"items":[{"type":"text","content":"hello"},{"type":"stat","label":"Progress","value":"50%"},{"type":"but'
     const { container } = render(<MarkdownText text={partial} streaming />)
-    // 已完成的组件渲染出来了
-    expect(container.textContent).toContain('你好')
-    expect(container.textContent).toContain('进度')
-    // 未完成的按钮不渲染
+    // the finished components rendered
+    expect(container.textContent).toContain('hello')
+    expect(container.textContent).toContain('Progress')
+    // the unfinished button did not
     expect(container.textContent).not.toContain('button')
   })
 
   it('grows the render as more components complete', () => {
     const head = '```dsh-ui\n{"items":[{"type":"text","content":"A"},'
     const r1 = render(<MarkdownText text={head + '{"type":"text","content":"B"}'} streaming />)
-    // 两个都完成
+    // both complete
     expect(r1.container.textContent).toContain('A')
     expect(r1.container.textContent).toContain('B')
     r1.unmount()
-    // 只有一个完成
+    // only one complete
     const r2 = render(<MarkdownText text={head} streaming />)
     expect(r2.container.textContent).toContain('A')
     expect(r2.container.textContent).not.toContain('B')

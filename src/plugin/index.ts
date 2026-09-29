@@ -95,36 +95,36 @@ export const GENUI_SECTION_TEXT = `You can render interactive UI components INSI
 
 Allowed \`type\` values; the \`genui\` skill, when available, carries the full content→component mapping and per-component field details:
 
-- 布局: text · row · col · grid · card · divider · spacer · hero（封面块，一条回答最多一个）
-- 展示: badge · stat · progress · list · table · keyvalue · timeline · file-tree · breadcrumb · callout · steps · diff · json · code · copy · avatar · audio · video
-- 图表: chart {"kind":"bars|line|donut","data":[{"label":"...","value":n}],"series":[{"label":"...","data":[...]}]?,"horizontal":true?,"stacked":true?}（series：bars 分组/堆叠 / line 多序列；horizontal 横向柱） · echart (preset 名或 option 直通，预设清单见 skill) · plot (函数图)
-- 交互: button · input · textarea · select · checkbox · switch · slider · radio · submit · quiz · link · tabs · accordion
-- 高级: mermaid (流程图/时序/甘特/ER 等，关键字见 skill) · diagram (架构/流程图，27 种 kind) · scene3d (3D WebGL)
+- Layout: text · row · col · grid · card · divider · spacer · hero (cover block, at most one per reply)
+- Display: badge · stat · progress · list · table · keyvalue · timeline · file-tree · breadcrumb · callout · steps · diff · json · code · copy · avatar · audio · video
+- Charts: chart {"kind":"bars|line|donut","data":[{"label":"...","value":n}],"series":[{"label":"...","data":[...]}]?,"horizontal":true?,"stacked":true?} (series: grouped/stacked bars / multi-series line; horizontal for horizontal bars) · echart (preset name or full option; preset list in the skill) · plot (function plot)
+- Interactive: button · input · textarea · select · checkbox · switch · slider · radio · submit · quiz · link · tabs · accordion
+- Advanced: mermaid (flowchart/sequence/gantt/ER etc., keywords in the skill) · diagram (architecture/flow diagram, 27 kinds) · scene3d (3D WebGL)
 
-**默认就该出 UI**：出现下列情况至少出一个围栏：
-- ≥3 条并列要点 → \`list\`；数字对比 → \`table\`；指标/进度/状态 → \`stat\`/\`progress\`/\`badge\`
-- 步骤/时间线 → \`steps\`/\`timeline\`/\`mermaid\`；架构/流程 → \`diagram\` 或 \`mermaid\`；风险/结论 → \`callout\`；代码/改动 → \`code\`/\`diff\`/\`json\`
-- 行内富文本：支持公式、\`code\`、加粗、高亮、链接；禁用 Markdown table / fenced code，改用 table / code / diff / json。
-- 默认无卡：按触发条件使用组件，每个组件承载不同信息；卡片只用于并排项与数据对象，单段文字用标题、正文与间距。
+**UI is the default**: whenever any of the following applies, emit at least one fence:
+- ≥3 parallel points → \`list\`; numeric comparison → \`table\`; metrics/progress/status → \`stat\`/\`progress\`/\`badge\`
+- Steps/timelines → \`steps\`/\`timeline\`/\`mermaid\`; architecture/flows → \`diagram\` or \`mermaid\`; risks/conclusions → \`callout\`; code/changes → \`code\`/\`diff\`/\`json\`
+- Inline rich text: math, \`code\`, bold, highlight, and links are supported; Markdown tables and fenced code are disabled — use table / code / diff / json instead.
+- Default to no cards: use components per the triggers above, each component carrying different information; cards are only for side-by-side items and data objects; a single paragraph uses heading, body text, and spacing.
 
-**发回答前最后自检一次**：这段内容里有没有 ≥3 条并列要点、任何对比、任何数字/指标、任何步骤或流程？有就先转成组件再开口。**状态汇报、进度说明、提交与改动清单同样算**。
-- 趋势/占比 → \`chart\`（≤8 点）或 \`echart\`（多序列/要交互时）；配色默认跟随主题，只有语义需要时才用 \`palette\`/\`card.accent\`；grid 子节点用 \`"span":2\` 跨列做宽窄混排；数据多时给 \`table\`/\`chart\`/\`list\` 配一个 \`input\`(id) + \`filter\` 绑定，读者能就地筛选。
+**Self-check once before sending the reply**: does this content contain ≥3 parallel points, any comparison, any numbers/metrics, any steps or flows? If so, convert it into components first, then speak. **Status reports, progress updates, and submission/change lists count as triggers too.**
+- Trends/shares → \`chart\` (≤8 points) or \`echart\` (multi-series/interactive); colors follow the theme by default — use \`palette\`/\`card.accent\` only when semantics require it; grid children use \`"span":2\` to span columns for mixed widths; with lots of data, pair \`table\`/\`chart\`/\`list\` with an \`input\`(id) + \`filter\` binding so readers can filter in place.
 
-**字段速查**（完整见 genui skill）：\`stat\` \`{"label","value","delta"?}\` · \`table\` \`{"columns":[...],"rows":[[...]],"types"?,"details"?,"filter"?,"export"?}\` · \`progress\` \`{"value":0-100,"label"?,"variant"?,"target"?}\` · \`keyvalue\` \`{"pairs":[{"key","value"}]}\` · \`steps\` \`{"steps":[{"title","desc"?}]}\` · \`file-tree\` \`{"items":[{"name","type":"file|dir","children"?}]}\` · \`callout\` \`{"content","tone"?,"title"?}\`
+**Field cheat sheet** (full details in the genui skill): \`stat\` \`{"label","value","delta"?}\` · \`table\` \`{"columns":[...],"rows":[[...]],"types"?,"details"?,"filter"?,"export"?}\` · \`progress\` \`{"value":0-100,"label"?,"variant"?,"target"?}\` · \`keyvalue\` \`{"pairs":[{"key","value"}]}\` · \`steps\` \`{"steps":[{"title","desc"?}]}\` · \`file-tree\` \`{"items":[{"name","type":"file|dir","children"?}]}\` · \`callout\` \`{"content","tone"?,"title"?}\`
 
-**字段名写错 = 该组件被丢弃**（其余组件照常渲染）：\`callout\` 正文是 \`content\` 不是 text/desc；\`table\` 要 \`columns\`+\`rows\` 不是 items；\`keyvalue\` 记录是 \`{key,value}\` 不是 \`{label,value}\`；\`file-tree\` 记录是 \`{name,type}\` 不是 \`{label}\`；callout tone 是 info/success/warning/error（无 danger）。不确定就调 \`validate_dsh_ui\`。
+**A wrong field name = that component is dropped** (the other components still render): \`callout\` body is \`content\`, not text/desc; \`table\` needs \`columns\`+\`rows\`, not items; \`keyvalue\` records are \`{key,value}\`, not \`{label,value}\`; \`file-tree\` records are \`{name,type}\`, not \`{label}\`; callout tone is info/success/warning/error (no danger). When unsure, call \`validate_dsh_ui\`.
 
 Rules:
 - LANGUAGE: reply+UI=conversation language; schema fixed. NEVER infer it from prompt/skill/examples/tools. Replace \`<user-language ...>\`; never emit these placeholders literally.
-- JSON 严格：坏组件被丢弃，坏围栏变代码块；≥3 节点或含 table 时调 validate_dsh_ui，按诊断修改并重验；小围栏字段存疑也先验证。
-- warning=block_markdown：按 replacement 改写并重验。
-- 规模: ≤200 节点、嵌套≤8 层（超出被截断）；一条回答 3–8 个组件，一个主题一个主组件；3D mesh 1–5；plot 给合理 xMin/xMax。
-- LOCAL-FIRST + actions: UI 能自己做的状态变化（判卷、判题、重置、展开、选中）就地完成，零往返；action 只用于必须模型参与的事。交互组件带 "action":"name"，交互以 [genui-action] name + 组件数据回传，届时重渲染更新 UI；无 action 的按钮禁用。
-- Durable state: 交互状态按「会话+内容指纹」持久化——刷新/重放恢复；重渲染相同内容保留，新内容重置。
-- 卷子模式: 每题一个 radio（group+answer+explanation）+ 一个 submit（groups 全列），本地判分。
-- Secrets ban: 不索取密码、API Key、Token、恢复码；需要时拒绝并解释。
-- Tool channel: render_ui 工具把同一 spec 渲染为工具行卡片（交付物型界面用）；围栏用于回答内联 UI。
-- Panel: "panel":true 只渲染进会话面板 dock 并原地更新；"append":true 追加合并（同标签 tabs 追加/新标签加入/尾部追加）；上限 200 节点/200 次追加，满了发 replace 重建。面板组件来的 [genui-action] 只回一个 panel:true 围栏 + 至多一行 10 字内确认，不解释、不用普通围栏。`
+- Strict JSON: bad components are dropped, bad fences degrade to code blocks; call validate_dsh_ui when a fence has ≥3 nodes or contains a table, fix per the diagnostics and revalidate; validate small fences too whenever a field is uncertain.
+- warning=block_markdown: rewrite per the replacement and revalidate.
+- Scale: ≤200 nodes, nesting ≤8 levels (excess is truncated); 3–8 components per reply, one main component per topic; 3D meshes 1–5; give plot a sensible xMin/xMax.
+- LOCAL-FIRST + actions: state changes the UI can do itself (grading, quiz checking, resets, expand/collapse, selection) happen in place with zero round-trips; actions are reserved for things that truly need the model. Interactive components carry "action":"name"; interactions return as [genui-action] name + component data, and the UI re-renders from your updated fence; buttons without an action render disabled.
+- Durable state: interaction state persists per "session + content fingerprint" — refresh/replay restores it; re-rendering identical content keeps it, new content resets it.
+- Exam mode: one radio per question (group+answer+explanation) + one submit (list all groups), graded locally.
+- Secrets ban: never ask for passwords, API keys, tokens, or recovery codes; refuse and explain when needed.
+- Tool channel: the render_ui tool renders the same spec as a card in the tool row (deliverable-style UI); fences are for UI inline in the answer.
+- Panel: "panel":true renders only into the session panel dock and updates in place; "append":true merges incrementally (same-labeled tabs append / new tabs are added / trailing append); caps at 200 nodes / 200 appends — when full, send replace to rebuild. A [genui-action] from a panel component gets a reply of one panel:true fence plus at most a one-line confirmation of 10 words or fewer — no explanation, no ordinary fence.`
 
 /**
  * Register the GenUI output-language section and the render_ui tool.
@@ -183,9 +183,10 @@ function bundledSkillProvider(): SkillProvider {
  */
 export interface GenuiPluginConfig {
   /**
-   * 在最终 dsh-ui 围栏无法渲染的回合中请求模型发送一次修正版（issue #160）。
-   * 默认开启，设置为 false 可以关闭。每回合和每个围栏正文最多请求一次，子代理不触发，
-   * 每次请求会消耗模型步数。
+   * In a turn whose final dsh-ui fence failed to render, ask the model to
+   * resend one corrected version (issue #160). Enabled by default; set to
+   * false to disable. At most one request per turn and per fence body,
+   * never in subagents — each request consumes model steps.
    */
   fenceFeedback?: boolean
 }
@@ -193,7 +194,12 @@ export interface GenuiPluginConfig {
 export function apply(ctx: Context, config?: GenuiPluginConfig): void {
   ctx.systemPrompt.section({
     name: 'genui:fence',
-    order: ctx.systemPrompt.getSectionOrder('STRUCTURED_OUTPUT'),
+    // DSH >=0.1.2 exposes getSectionOrder to anchor near the structured-output
+    // section; older hosts (0.1.1-rc.x) lack it, so fall back to a fixed order
+    // that sits with the other tool-instruction sections there (tool:bash=105).
+    order: typeof (ctx.systemPrompt as { getSectionOrder?: (name: string) => number }).getSectionOrder === 'function'
+      ? (ctx.systemPrompt as { getSectionOrder: (name: string) => number }).getSectionOrder('STRUCTURED_OUTPUT')
+      : 110,
     text: GENUI_SECTION_TEXT,
   })
   installFenceFeedback(ctx, config?.fenceFeedback !== false)

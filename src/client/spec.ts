@@ -299,9 +299,9 @@ export interface GenuiTable {
   rows: Array<Array<string | number>>
   /** Per-column cell type; missing = auto (numeric right-align, signed delta). */
   types?: TableCellType[]
-  /** Append a 合计 footer row (numeric columns are summed). */
+  /** Append a total footer row (numeric columns are summed). */
   total?: boolean
-  /** Show 复制 Markdown / 复制 CSV chips above the table. */
+  /** Show Copy Markdown / Copy CSV chips above the table. */
   export?: boolean
   /** Optional master-detail payload, positionally aligned with `rows`:
    *  `details[i]` is what row i expands into (omit / empty = not expandable). */
@@ -355,7 +355,7 @@ export interface GenuiTabs {
   tabs: GenuiTab[]
 }
 
-/* ---------------- v1.1 additions: plot / callout / steps / keyvalue / 收编 ---------------- */
+/* ---------------- v1.1 additions: plot / callout / steps / keyvalue / adopted nodes ---------------- */
 
 export interface GenuiPlotSeries {
   /** Math expression in x (safe evaluator: sin/cos/tan/pow/sqrt/log/exp/abs/floor/ceil/round/min/max/pi/e). */
@@ -419,7 +419,7 @@ export interface GenuiKeyValue {
   pairs: Array<{ key: string; value: string }>
 }
 
-/** 收编 dsh DiffBlock: file mutations as an inline diff. */
+/** Adopted from dsh DiffBlock: file mutations as an inline diff. */
 export interface GenuiDiff {
   type: 'diff'
   diffs: Array<{
@@ -429,14 +429,14 @@ export interface GenuiDiff {
   }>
 }
 
-/** 收编 dsh JsonTree: a structured JSON value for inspection. */
+/** Adopted from dsh JsonTree: a structured JSON value for inspection. */
 export interface GenuiJson {
   type: 'json'
   /** Any JSON value to render as a tree. */
   value: unknown
 }
 
-/** 收编 dsh CodeBlock: syntax-highlighted code with an explicit language. */
+/** Adopted from dsh CodeBlock: syntax-highlighted code with an explicit language. */
 export interface GenuiCode {
   type: 'code'
   lang?: string
@@ -456,7 +456,8 @@ export interface GenuiRadio {
   /**
    * v2.5: aggregation group name. When set, the selection is recorded into
    * the block-wide answers registry instead of firing a per-click action — a
-   * sibling `submit` node then collects ALL groups ("交卷" pattern). Without
+   * sibling `submit` node then collects ALL groups ("hand in the paper"
+   * pattern). Without
    * `group`, the legacy per-click behavior applies.
    */
   group?: string
@@ -485,7 +486,7 @@ export interface GenuiSubmit {
    */
   action?: string
   /**
-   * v2.6: optional action fired when the user clicks "重新作答" after a
+   * v2.6: optional action fired when the user clicks "Retry" after a
    * local grading (e.g. to tell the model the paper was redone). Absent =
    * reset stays fully local.
    */

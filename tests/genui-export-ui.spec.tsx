@@ -15,7 +15,7 @@ import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 afterEach(() => {
   cleanup()
   clearSessionPanel('artifact-ui')
-  setLocale('zh')
+  setLocale('en')
 })
 
 function toolProps(): ToolCallViewProps {
@@ -31,20 +31,20 @@ describe('artifact export entry points', () => {
   it('shows the export menu only after a fence settles', () => {
     const raw = JSON.stringify({ title: 'Ready', items: [{ type: 'text', content: 'content' }] })
     const streaming = render(renderGenuiFence(raw, 'stream', { sessionId: 's' }) as never)
-    expect(screen.queryByRole('button', { name: '导出' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Export' })).toBeNull()
     streaming.unmount()
     render(renderGenuiFence(raw, 'settled', { sessionId: 's', source: { id: 'source-1', order: [1, 0, 0] } }) as never)
-    expect(screen.getByRole('button', { name: '导出' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeTruthy()
   })
 
   it('shows export for settled tool and panel content', () => {
     const tool = render(<GenuiToolView {...toolProps()} />)
-    expect(screen.getByRole('button', { name: '导出' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeTruthy()
     tool.unmount()
     applyPanelOperation('artifact-ui', { sourceId: 'panel', order: [1, -1, 0], mode: 'replace', spec: { items: [{ type: 'text', content: 'Panel' }] } })
     render(<GenuiPanel sessionId="artifact-ui" sendGenuiAction={() => {}} insertTemplate={() => {}} />)
     fireEvent.click(document.querySelector('[data-genui-panel] .panelToggle') ?? document.querySelector('[data-genui-panel] button')!)
-    expect(screen.getByRole('button', { name: '导出' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeTruthy()
   })
 
   it('supports keyboard dismissal, accessible menu roles, English labels, and excludes template previews', () => {
@@ -57,18 +57,18 @@ describe('artifact export entry points', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
     view.unmount()
-    setLocale('zh')
+    setLocale('en')
     render(<TemplateDrawer tab="templates" onUse={() => {}} />)
-    fireEvent.click(screen.getByText('项目仪表盘'))
+    fireEvent.click(screen.getByText('Project dashboard'))
     expect(document.querySelector('[data-genui-template-preview] [data-genui-export]')).toBeNull()
   })
 
   it('explains why custom components prevent HTML export while keeping JSON available', () => {
     render(<ExportableGenuiBlock spec={{ items: [{ type: 'weather', temp: 20 }] } as never} />)
-    fireEvent.click(screen.getByRole('button', { name: '导出' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
     expect((screen.getByRole('menuitem', { name: 'HTML' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByRole('menuitem', { name: 'GenUI JSON' })).toBeTruthy()
-    expect(screen.getByText(/自定义组件 weather/)).toBeTruthy()
+    expect(screen.getByText(/custom components: weather/)).toBeTruthy()
   })
 
   it('does not render status text after a successful export', async () => {
@@ -82,12 +82,12 @@ describe('artifact export entry points', () => {
     document.addEventListener('click', cancelDownload, true)
     try {
       render(<ExportableGenuiBlock spec={{ items: [{ type: 'text', content: 'View' }] }} />)
-      fireEvent.click(screen.getByRole('button', { name: '导出' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Export' }))
       fireEvent.click(screen.getByRole('menuitem', { name: 'GenUI JSON' }))
       await new Promise(resolve => window.setTimeout(resolve, 1))
-      expect(screen.queryByText('正在准备下载…')).toBeNull()
-      expect(screen.queryByText('已开始下载。')).toBeNull()
-      expect(screen.queryByText('导出失败，请重试。')).toBeNull()
+      expect(screen.queryByText('Preparing download…')).toBeNull()
+      expect(screen.queryByText('Download started.')).toBeNull()
+      expect(screen.queryByText('Export failed. Try again.')).toBeNull()
     } finally {
       document.removeEventListener('click', cancelDownload, true)
       globalThis.URL = originalURL

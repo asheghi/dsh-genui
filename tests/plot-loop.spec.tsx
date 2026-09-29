@@ -45,17 +45,17 @@ describe('PlotBlock loop animation', () => {
     const slider = container.querySelector('input[type="range"]') as HTMLInputElement
 
     fireEvent.click(play)
-    expect(play.textContent).toContain('暂停')
+    expect(play.textContent).toContain('Pause')
 
     act(() => { tick(100) })
     expect(Number(slider.value)).toBe(1)
-    expect(play.textContent).toContain('暂停')
+    expect(play.textContent).toContain('Pause')
     expect(callbacks.size).toBe(1)
 
     act(() => { tick(50) })
     expect(Number(slider.value)).toBeGreaterThan(1)
     expect(Number(slider.value)).toBeLessThan(3)
-    expect(play.textContent).toContain('暂停')
+    expect(play.textContent).toContain('Pause')
   })
 
   it('cancels the RAF chain when paused', () => {
@@ -72,7 +72,7 @@ describe('PlotBlock loop animation', () => {
     const pausedAt = Number(slider.value)
 
     fireEvent.click(play)
-    expect(play.textContent).toContain('播放')
+    expect(play.textContent).toContain('Play')
     expect(callbacks.size).toBe(0)
 
     act(() => { tick(200) })

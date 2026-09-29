@@ -1,118 +1,118 @@
-# GenUI 录屏演示 — 四幕 prompt + 操作指南
+# GenUI screen-recording demo — four-act prompts + operating guide
 
-> 用途：为 genui 插件 README 录制演示视频。
-> 流程：重启 3080 → 硬刷新浏览器 → 按顺序发送下面四幕 prompt（每幕一条消息）→ 全程录屏 → 按"剪辑建议"裁剪。
-
----
-
-## 准备（每次录屏前）
-
-1. 重启 dsh web（加载 genui 插件与最新渲染器），浏览器硬刷新 Cmd+Shift+R
-2. 新建会话
-3. 开录：macOS `Cmd+Shift+5`（区域录制）或 ScreenFlow / OBS
-4. 建议窗口宽度 1280–1440，深色主题
+> Purpose: record a demo video for the genui plugin README.
+> Flow: restart 3080 → hard-refresh the browser → send the four act prompts below in order (one message per act) → record the whole run → cut it according to the "editing notes".
 
 ---
 
-## 第一幕：布局与数据可视化（约 60–90 秒）
+## Preparation (before every recording)
 
-> 展示：组件穿插在文字之间、排版系统、数据面板。
-
-```
-接下来请为我的插件 README 演示视频输出第一幕内容：主题是「GenUI 布局与数据」。
-
-规则：
-1. 用 dsh-ui 围栏输出，组件必须穿插在简短文字之间（每段文字 1-2 句），让 UI 看起来是回答的一部分，而不是工具卡片
-2. 顶层 title 用「GenUI · 布局与数据」
-3. 按下面顺序完整输出，一个都不能少：
-   - text：h1 / h2 / h3 / body / muted / caption 各一个（展示排版层级）
-   - 一行 badge（success / warn / danger / accent 四种 tone 各一个）+ 两个 avatar（不同名字）+ 一个 link
-   - 一个 grid（3 列）：四个 stat，两个带正 delta、一个带负 delta、一个不带
-   - 一个 progress（value 72，valueLabel "72%"）
-   - 一个 card（标题「性能指标」）：里面放一个 table（5 行 4 列，数据用真实感数值）+ 一个 keyvalue（4 对）
-   - 一个 list（3 项，带 title+desc）
-   - 中间穿插 divider
-4. 结尾用一句话收束
-```
+1. Restart dsh web (loads the genui plugin and the latest renderer), then hard-refresh the browser with Cmd+Shift+R
+2. Start a new session
+3. Start recording: macOS `Cmd+Shift+5` (area recording) or ScreenFlow / OBS
+4. Recommended window width 1280–1440, dark theme
 
 ---
 
-## 第二幕：交互组件巡礼（约 90–120 秒）
+## Act one: layout and data visualization (about 60–90 seconds)
 
-> 展示：表单、切换、标签页、折叠面板——录屏者逐个点击。
+> Shows: components interleaved between paragraphs, the typography system, data panels.
 
 ```
-继续输出第二幕内容：主题是「GenUI 交互组件」。让观看者能亲手点击。
+Now produce the first act of content for my plugin's README demo video: the topic is "GenUI layout and data".
 
-规则：
-1. 用 dsh-ui 围栏，组件穿插在文字之间
-2. 顶层 title 用「GenUI · 交互组件」
-3. 按顺序输出：
-   - tabs：3 个标签页，内容分别是一个表单、一个列表、一个 chart（bars）
-   - accordion：3 项（展开项展示一个 json 查看器 + 一个 code 块）
-   - 一个「偏好设置」card：switch（自动保存，checked true）+ radio（3 个主题选项）+ checkbox（2 个）+ select（4 个选项）+ input（placeholder 提示）+ textarea（2 行）+ primary button（label「保存设置」）+ ghost button + copy 组件
-   - steps（current 2，3 步）+ 一个 callout（info tone）
-4. 在 tabs 和偏好设置处用文字提示观看者：「点击标签页切换」「可以打开这些开关试试」
-5. 结尾用一句话收束
+Rules:
+1. Output through a dsh-ui fence, and interleave the components between short paragraphs (1-2 sentences each), so the UI reads as part of the answer rather than a tool card
+2. Use "GenUI · Layout and Data" as the top-level title
+3. Emit the following in full and in this order, none of them missing:
+   - text: one each of h1 / h2 / h3 / body / muted / caption (to show the typography hierarchy)
+   - one row of badges (one each of the success / warn / danger / accent tones) + two avatars (different names) + one link
+   - one grid (3 columns): four stats, two with a positive delta, one with a negative delta, one without
+   - one progress (value 72, valueLabel "72%")
+   - one card (title "Performance metrics"): inside it a table (5 rows, 4 columns, realistic-looking numbers) + a keyvalue (4 pairs)
+   - one list (3 items, each with title+desc)
+   - a divider interleaved in the middle
+4. Close with a single closing sentence
 ```
 
 ---
 
-## 第三幕：可视化与教学（约 120–180 秒）— 全场高光
+## Act two: tour of interactive components (about 90–120 seconds)
 
-> 展示：plot 参数滑块 + 播放动画、quiz 判题、mermaid、3D 场景。
-
-```
-继续输出第三幕内容：主题是「GenUI 可视化与教学」。这是最精彩的一幕。
-
-规则：
-1. 用 dsh-ui 围栏，组件穿插在文字之间
-2. 顶层 title 用「GenUI · 可视化与教学」
-3. 按顺序输出：
-   - plot 一：两条曲线 a*sin(b*x) 和 0.8*cos(c*x)，xMin -6.28 xMax 6.28，第一条曲线的 a 参数带 animateTo 3 和 durationMs 4000（这样会出现播放按钮），b 和 c 是普通滑块参数，标题「波动叠加」——用文字告诉观看者「拖动滑块试试，或点播放按钮看动画」
-   - quiz：两道题（每题 4 个选项 + explanation）。第一题请把正确答案放在选项 B，并在前面用文字提示「选 B 试试」；第二题让观看者故意点一个错误选项，展示判错和「再试一次」
-   - mermaid：一个 flowchart（展示 GenUI 渲染管线：模型 → dsh-ui 围栏 → 解析器 → 组件渲染），再一个 gantt（展示插件开发计划）
-   - scene3d：一个场景（title「几何演示」），包含 4 个 mesh：旋转的立方体、球体、圆环、圆锥，颜色各异——用文字提示「按住拖拽旋转，滚轮缩放」
-   - timeline（4 项）+ file-tree（2 层目录 + 3 个文件）+ breadcrumb
-4. 结尾用一句话收束
-```
-
----
-
-## 第四幕：事件循环（约 60–90 秒）— 收尾高光
-
-> 展示：组件 action → 模型响应 → UI 更新。点击后模型会自动回复新的 dsh-ui。
+> Shows: forms, toggles, tabs, accordions — the recorder clicks through them.
 
 ```
-继续输出第四幕内容：主题是「GenUI 事件循环」——组件和模型之间的双向互动。
+Continue with the second act of content: the topic is "GenUI interactive components". Let viewers click things themselves.
 
-规则：
-1. 用 dsh-ui 围栏，顶层 title 用「GenUI · 事件循环」
-2. 输出一个「服务器监控面板」card：
-   - 四个 stat：CPU 42% / 内存 6.8 GB / 请求数 128.4k / 延迟 87 ms
-   - 一个 switch（label「自动刷新」，checked true，带 action "toggle-refresh"）
-   - 一个 button（label「刷新数据」，tone primary，带 action "refresh"）
-   - 一个 select（label「环境」，选项 staging/production/dev，带 action "env-switch"）
-   - 一个 callout（info，内容「点击下面的控件，我会实时响应并更新面板」）
-3. 用文字告诉观看者：「点击『刷新数据』，或切换环境，我会重新生成整个面板」
-4. 收到我的 [genui-action] 后：每次都用新的 dsh-ui 回应（比如刷新后 CPU 变成 63%、延迟 112ms；切换环境后 stat 数值变化并加一个 success badge「已切换到 production」），用一两句中文说明状态变化，不要输出无关内容
+Rules:
+1. Use a dsh-ui fence, with the components interleaved between paragraphs
+2. Use "GenUI · Interactive Components" as the top-level title
+3. Emit in order:
+   - tabs: 3 tabs whose contents are a form, a list, and a chart (bars) respectively
+   - accordion: 3 items (the expanded item shows a json viewer + a code block)
+   - a "Preferences" card: switch (auto-save, checked true) + radio (3 theme options) + checkbox (2) + select (4 options) + input (placeholder hint) + textarea (2 rows) + primary button (label "Save settings") + ghost button + a copy component
+   - steps (current 2, 3 steps) + a callout (info tone)
+4. Next to the tabs and the preferences card, prompt viewers in the text: "click the tabs to switch" and "try flipping these switches"
+5. Close with a single closing sentence
 ```
 
 ---
 
-## 剪辑建议（README demo，目标 60–90 秒精华版）
+## Act three: visualization and teaching (about 120–180 seconds) — the highlight of the show
 
-| 镜头 | 素材 | 时长 |
+> Shows: plot parameter sliders + playback animation, quiz grading, mermaid, a 3D scene.
+
+```
+Continue with the third act of content: the topic is "GenUI visualization and teaching". This is the most impressive act.
+
+Rules:
+1. Use a dsh-ui fence, with the components interleaved between paragraphs
+2. Use "GenUI · Visualization and Teaching" as the top-level title
+3. Emit in order:
+   - plot one: two curves a*sin(b*x) and 0.8*cos(c*x), xMin -6.28 xMax 6.28, with the first curve's a parameter carrying animateTo 3 and durationMs 4000 (so a play button appears), b and c as ordinary slider parameters, title "Wave superposition" — tell viewers in the text "drag the sliders, or hit play to watch the animation"
+   - quiz: two questions (4 options + explanation each). For the first, put the correct answer on option B and prompt in the text beforehand "try B"; for the second, have viewers deliberately pick a wrong option so the wrong-answer state and "Try again" are shown
+   - mermaid: a flowchart (showing the GenUI render pipeline: model → dsh-ui fence → parser → component render), then a gantt (showing the plugin development plan)
+   - scene3d: one scene (title "Geometry demo") containing 4 meshes: a rotating cube, a sphere, a torus, a cone, each a different colour — prompt in the text "drag to rotate, scroll to zoom"
+   - timeline (4 items) + file-tree (2 levels of directories + 3 files) + breadcrumb
+4. Close with a single closing sentence
+```
+
+---
+
+## Act four: the event loop (about 60–90 seconds) — the closing highlight
+
+> Shows: component action → model response → UI update. After a click the model automatically replies with a new dsh-ui.
+
+```
+Continue with the fourth act of content: the topic is "GenUI event loop" — the two-way interaction between components and the model.
+
+Rules:
+1. Use a dsh-ui fence, with "GenUI · Event Loop" as the top-level title
+2. Emit a "Server monitoring panel" card:
+   - four stats: CPU 42% / memory 6.8 GB / requests 128.4k / latency 87 ms
+   - a switch (label "Auto-refresh", checked true, with action "toggle-refresh")
+   - a button (label "Refresh data", tone primary, with action "refresh")
+   - a select (label "Environment", options staging/production/dev, with action "env-switch")
+   - a callout (info, content "Click the controls below and I will respond live and update the panel")
+3. Tell viewers in the text: "Click 'Refresh data', or switch the environment, and I will regenerate the whole panel"
+4. After receiving my [genui-action]: always reply with a new dsh-ui (for example, after a refresh CPU becomes 63% and latency 112ms; after an environment switch the stat values change and a success badge "Switched to production" is added), explain the state change in one or two sentences, and output nothing unrelated
+```
+
+---
+
+## Editing notes (README demo, targeting a 60–90 second highlight cut)
+
+| Shot | Footage | Duration |
 |---|---|---|
-| 开场 | 第一幕前半（流式渲染：组件边生成边出现） | 0:00–0:10 |
-| 数据 | 第一幕 stat/table/chart | 0:10–0:20 |
-| 交互 | 第二幕 tabs 切换 + 开关/表单点击 | 0:20–0:35 |
-| 高光 | 第三幕 plot 滑块拖动 + 播放动画 + quiz 判题 | 0:35–0:55 |
-| 高级 | scene3d 拖拽旋转 + mermaid | 0:55–1:10 |
-| 收尾 | 第四幕 点击「刷新数据」→ 模型更新面板 | 1:10–1:30 |
+| Opening | first half of act one (streaming render: components appearing as they generate) | 0:00–0:10 |
+| Data | act one stat/table/chart | 0:10–0:20 |
+| Interaction | act two tab switching + toggles/form clicks | 0:20–0:35 |
+| Highlight | act three plot slider drag + playback animation + quiz grading | 0:35–0:55 |
+| Advanced | scene3d drag-to-rotate + mermaid | 0:55–1:10 |
+| Closing | act four clicking "Refresh data" → model updates the panel | 1:10–1:30 |
 
-节奏提示：
-- 拖动 plot 滑块时**放慢**（每秒 1–2 格），这是最出效果的镜头
-- 每个组件渲染完、动画停稳后再操作，避免画面抖动
-- 事件循环幕点完按钮后等模型回复（10–30 秒），期间不要操作，剪辑时把等待压缩成 1 秒转场
-- 如果某幕生成超长，可以中途停止重发，模型会续写
+Pacing notes:
+- **Slow down** while dragging the plot slider (1–2 steps per second) — this is the shot that lands best
+- Wait for each component to finish rendering and for animations to settle before interacting, to avoid a jittery picture
+- In the event-loop act, wait for the model's reply after clicking the button (10–30 seconds) and do not touch anything meanwhile; in the edit, compress the wait into a 1-second transition
+- If an act generates too long, you can stop it midway and resend — the model will continue

@@ -207,7 +207,7 @@ export function GenuiPanel({ sessionId, sendGenuiAction, insertTemplate }: Genui
           <span className={css.panelBadge}>{t('panel.badge')}</span>
           <span className={css.panelTitle}>{spec?.title ?? t(drawer !== null ? 'panel.title.explore' : 'panel.title.default')}</span>
           <span className={css.panelChevron} aria-hidden>
-            {/* 折叠状态对应的箭头。 */}
+            {/* Chevron matching the collapsed state. */}
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d={collapsed ? 'M12 10L8.70711 6.70711C8.31658 6.31658 7.68342 6.31658 7.29289 6.70711L4 10' : 'M4 6L7.29289 9.29289C7.68342 9.68342 8.31658 9.68342 8.70711 9.29289L12 6'} stroke="currentColor" />
             </svg>

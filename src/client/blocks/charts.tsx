@@ -42,8 +42,8 @@ const seriesColor = (i: number, n: number, c?: string, palette?: readonly string
 /**
  * Sortable numeric value of a cell. Human-written table cells are rarely
  * plain numbers, so the sort accepts the usual decorations:
- * `1,234` / `1，234`（千分位）、`1.2k`/`3M`/`5b`、`3.5万`/`2亿`、`0.3%`、
- * `¥99`/`$12`。A cell that cannot be read as a number returns NaN and the
+ * `1,234` / `1\uFF0C234` (thousands separator), `1.2k`/`3M`/`5b`, `3.5\u4E07`/`2\u4EBF`, `0.3%`,
+ * `¥99`/`$12`. A cell that cannot be read as a number returns NaN and the
  * row falls back to the text comparison — mixed columns sort deterministically
  * (numbers first, then text).
  */
@@ -55,10 +55,10 @@ export function parseSortableNumber(v: unknown): number {
   s = s.replace(/^[¥$€£]/, '')
   const pct = s.endsWith('%')
   if (pct) s = s.slice(0, -1)
-  // 中文单位在前：3.5万 → 35000、2亿 → 200000000；再是 k/m/b 后缀。
+  // CJK scale units first: 3.5\u4E07 -> 35000, 2\u4EBF -> 200000000; then k/m/b suffixes.
   let mult = 1
-  if (s.endsWith('万')) { mult = 10_000; s = s.slice(0, -1) }
-  else if (s.endsWith('亿')) { mult = 100_000_000; s = s.slice(0, -1) }
+  if (s.endsWith('\u4e07')) { mult = 10_000; s = s.slice(0, -1) }
+  else if (s.endsWith('\u4ebf')) { mult = 100_000_000; s = s.slice(0, -1) }
   else if (/[kmb]$/i.test(s)) {
     const unit = s.slice(-1).toLowerCase()
     mult = unit === 'k' ? 1e3 : unit === 'm' ? 1e6 : 1e9
@@ -139,7 +139,7 @@ function CellRing({ cell }: { cell: string | number }) {
   )
 }
 
-/** Markdown table text for the 复制 Markdown chip (pipes escaped). */
+/** Markdown table text for the Copy Markdown chip (pipes escaped). */
 export function tableToMarkdown(columns: string[], rows: Array<Array<string | number>>): string {
   const escape = (v: unknown): string => String(v ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ')
   const head = `| ${columns.map(escape).join(' | ')} |`
@@ -148,7 +148,7 @@ export function tableToMarkdown(columns: string[], rows: Array<Array<string | nu
   return [head, rule, ...body].join('\n')
 }
 
-/** RFC 4180 CSV text for the 复制 CSV chip. */
+/** RFC 4180 CSV text for the Copy CSV chip. */
 export function tableToCsv(rows: Array<Array<string | number>>): string {
   const cell = (v: unknown): string => {
     const s = String(v ?? '')
@@ -291,7 +291,7 @@ export const TableNode = memo(function TableNode({ node, renderDetail, filterVal
       ? prev.dir === 1 ? { col: i, dir: -1 } : null
       : { col: i, dir: 1 })
   }
-  // Optional 合计 footer: sums every numeric column (section headers excluded).
+  // Optional total footer: sums every numeric column (section headers excluded).
   const totals = columns.map((_c, j) => {
     if (!numeric[j]) return null
     let sum = 0
@@ -444,7 +444,7 @@ interface TipState { x: number; y: number; rows: TipRow[] }
 /**
  * Instant, self-drawn hover readout. The browser's native `title` takes about
  * a second to appear and cannot show a stacked breakdown, which is exactly
- * what a stacked bar needs ("hover 上去要会显示各自部分的具体数值").
+ * what a stacked bar needs ("hovering should show the exact value of each part").
  */
 function useChartTip(): {
   tip: TipState | null
@@ -529,7 +529,7 @@ function formatTick(t: number): string {
   return String(Math.round(t * 100) / 100)
 }
 
-/** 计算数字用普通或指数形式表示时所需的小数位数。 */
+/** Number of decimal places needed to render a number in plain or exponential form. */
 export function fractionDigits(value: number): number {
   if (!Number.isFinite(value)) return 0
   const [coefficient, exponentText] = String(value).toLowerCase().split('e')
@@ -538,7 +538,7 @@ export function fractionDigits(value: number): number {
   return Math.max(decimalDigits - exponent, 0)
 }
 
-/** 按参与计算的原始数值精度格式化图表合计。 */
+/** Format a chart total using the precision of the raw values that fed the computation. */
 export function formatChartValue(value: number, maxFractionDigits: number): string {
   if (!Number.isFinite(value)) return String(value)
   if (Math.abs(value) >= 1e21 || maxFractionDigits > 100) return String(value)

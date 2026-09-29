@@ -9,7 +9,7 @@ describe('GenUI runtime schema normalization', () => {
   it('uses registry field kinds and one-of rules during validation', () => {
     expect(validateGenuiSpec({ items: [{ type: 'card', title: 123, items: [] }] }).errors)
       .toContain('items[0].title must be a string')
-    expect(validateGenuiSpec({ items: [{ type: 'chart', kind: 'bars', series: [{ label: 'A', data: [{ label: '一', value: 1 }] }] }] }).ok)
+    expect(validateGenuiSpec({ items: [{ type: 'chart', kind: 'bars', series: [{ label: 'A', data: [{ label: 'one', value: 1 }] }] }] }).ok)
       .toBe(true)
     expect(validateGenuiSpec({ items: [{ type: 'chart' }] }).errors)
       .toContain("items[0]: type 'chart' requires data or series (array)")
@@ -29,7 +29,7 @@ describe('GenUI runtime schema normalization', () => {
       expect(processGenuiSpec(raw).errors).toEqual([message])
     }
 
-    const legalRoot = { title: '合法', gap: 8, panel: true, append: false, items: [] }
+    const legalRoot = { title: 'Valid', gap: 8, panel: true, append: false, items: [] }
     expect(validateGenuiSpec(legalRoot)).toEqual({ ok: true, errors: [] })
     expect(processGenuiSpec(legalRoot).errors).toEqual([])
     expect(validateGenuiSpec({ type: 'text', content: 'bare component' })).toEqual({ ok: true, errors: [] })
@@ -99,16 +99,16 @@ describe('GenUI runtime schema normalization', () => {
 
   it('normalizes every issue #102 alias with stable warning paths', () => {
     const result = normalizeGenuiSpec({ items: [
-      { type: 'card', label: '标题', content: [{ type: 'text', text: '卡片' }] },
-      { type: 'table', headers: ['名称'], data: [['苹果']] },
-      { type: 'callout', kind: 'warning', content: '注意' },
-      { type: 'steps', items: [{ title: '第一步' }] },
+      { type: 'card', label: 'Title', content: [{ type: 'text', text: 'Card' }] },
+      { type: 'table', headers: ['Name'], data: [['Apple']] },
+      { type: 'callout', kind: 'warning', content: 'Note' },
+      { type: 'steps', items: [{ title: 'Step one' }] },
     ] })
     expect(result.value).toEqual({ items: [
-      { type: 'card', title: '标题', items: [{ type: 'text', content: '卡片' }] },
-      { type: 'table', columns: ['名称'], rows: [['苹果']] },
-      { type: 'callout', tone: 'warning', content: '注意' },
-      { type: 'steps', steps: [{ title: '第一步' }] },
+      { type: 'card', title: 'Title', items: [{ type: 'text', content: 'Card' }] },
+      { type: 'table', columns: ['Name'], rows: [['Apple']] },
+      { type: 'callout', tone: 'warning', content: 'Note' },
+      { type: 'steps', steps: [{ title: 'Step one' }] },
     ] })
     expect(result.warnings.map(warning => [warning.path, warning.field, warning.canonical])).toEqual([
       ['items[0].label', 'label', 'title'],
@@ -137,19 +137,19 @@ describe('GenUI runtime schema normalization', () => {
 
   it('retains existing compatibility aliases and table object semantics', () => {
     const result = processGenuiSpec({ items: [
-      { type: 'text', text: '旧文本' },
-      { type: 'badge', text: '文本徽章' },
-      { type: 'badge', value: '值徽章' },
-      { type: 'tabs', tabs: [{ label: '一', content: { type: 'text', content: '内容' } }] },
-      { type: 'table', columns: [{ title: '名称', key: 'name' }], data: [{ name: '苹果' }] },
+      { type: 'text', text: 'Legacy body' },
+      { type: 'badge', text: 'Text badge' },
+      { type: 'badge', value: 'Value badge' },
+      { type: 'tabs', tabs: [{ label: 'one', content: { type: 'text', content: 'Body' } }] },
+      { type: 'table', columns: [{ title: 'Name', key: 'name' }], data: [{ name: 'Apple' }] },
     ] })
     expect(result.errors).toEqual([])
     expect(result.repaired?.items).toEqual([
-      { type: 'text', content: '旧文本' },
-      { type: 'badge', label: '文本徽章' },
-      { type: 'badge', label: '值徽章' },
-      { type: 'tabs', tabs: [{ label: '一', items: [{ type: 'text', content: '内容' }] }] },
-      { type: 'table', columns: ['名称'], rows: [['苹果']] },
+      { type: 'text', content: 'Legacy body' },
+      { type: 'badge', label: 'Text badge' },
+      { type: 'badge', label: 'Value badge' },
+      { type: 'tabs', tabs: [{ label: 'one', items: [{ type: 'text', content: 'Body' }] }] },
+      { type: 'table', columns: ['Name'], rows: [['Apple']] },
     ])
   })
 
@@ -158,11 +158,11 @@ describe('GenUI runtime schema normalization', () => {
     // with no `columns`. Before this, repair dropped the node and the whole
     // fence degraded to a code block; now the leading row becomes the header.
     const headed = processGenuiSpec({ items: [
-      { type: 'table', data: [['#', '任务'], ['t1', '后端'], ['t2', '前端']] },
+      { type: 'table', data: [['#', 'Task'], ['t1', 'Backend'], ['t2', 'Frontend']] },
     ] })
     expect(headed.errors).toEqual([])
     expect(headed.repaired?.items).toEqual([
-      { type: 'table', columns: ['#', '任务'], rows: [['t1', '后端'], ['t2', '前端']] },
+      { type: 'table', columns: ['#', 'Task'], rows: [['t1', 'Backend'], ['t2', 'Frontend']] },
     ])
 
     // Ragged body: the leading row is data, so the columns are neutral names
@@ -172,12 +172,12 @@ describe('GenUI runtime schema normalization', () => {
     ] })
     expect(ragged.errors).toEqual([])
     expect(ragged.repaired?.items).toEqual([
-      { type: 'table', columns: ['列1', '列2', '列3'], rows: [['a', 'b', 'c'], ['1']] },
+      { type: 'table', columns: ['Column 1', 'Column 2', 'Column 3'], rows: [['a', 'b', 'c'], ['1']] },
     ])
 
     // Header-only capture stays a (header) table with an empty body.
-    expect(processGenuiSpec({ items: [{ type: 'table', rows: [['名称', '结果']] }] }).repaired?.items)
-      .toEqual([{ type: 'table', columns: ['名称', '结果'], rows: [] }])
+    expect(processGenuiSpec({ items: [{ type: 'table', rows: [['Name', 'Result']] }] }).repaired?.items)
+      .toEqual([{ type: 'table', columns: ['Name', 'Result'], rows: [] }])
 
     // A non-2D body is still a contract error, not something to invent from.
     expect(processGenuiSpec({ items: [{ type: 'table', rows: 42 }] }).errors)
@@ -209,7 +209,7 @@ describe('GenUI runtime schema normalization', () => {
       itmes: [],
       items: [{
         type: 'chart',
-        data: [{ label: '一', value: 1, lable: 'typo' }],
+        data: [{ label: 'one', value: 1, lable: 'typo' }],
       }, {
         type: 'tabs',
         tabs: [{ label: 'tab', items: [], lable: 'typo' }],
@@ -297,8 +297,8 @@ describe('GenUI runtime schema normalization', () => {
       type: 'chart',
       data: [],
       series: [
-        { label: '本月', data: [{ label: 'Q1', value: 3 }] },
-        { label: '上月', data: [{ label: 'Q1', value: 2 }] },
+        { label: 'This month', data: [{ label: 'Q1', value: 3 }] },
+        { label: 'Last month', data: [{ label: 'Q1', value: 2 }] },
       ],
     }] })
     expect(processed.errors).toEqual([])
@@ -353,12 +353,12 @@ describe('GenUI runtime schema normalization', () => {
   it('reports native nodes dropped by repair with declared/rendered counts', () => {
     const result = processGenuiSpec({ items: [
       { type: 'table', columns: {}, rows: 42 },
-      { type: 'text', content: '保留' },
+      { type: 'text', content: 'Kept' },
     ] })
     expect(result.declaredCount).toBe(2)
     expect(result.renderedCount).toBe(1)
     expect(result.errors.some(error => error.includes('declared 2, rendered 1'))).toBe(true)
-    expect(result.repaired?.items).toEqual([{ type: 'text', content: '保留' }])
+    expect(result.repaired?.items).toEqual([{ type: 'text', content: 'Kept' }])
   })
 
   it('makes direct repair and validation consume canonical aliases', () => {

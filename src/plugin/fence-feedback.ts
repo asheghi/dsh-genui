@@ -7,7 +7,7 @@
  * fence while the user is still looking at the raw JSON.
  *
  * The loop is deliberately narrow, matching the contract agreed on the issue:
- * - **默认开启。** 插件配置中的 `fenceFeedback: false` 可以关闭回合转向。
+ * - **On by default.** `fenceFeedback: false` in the plugin config disables turn steering.
  * - **Bounded.** At most one correction per turn AND at most one per fence
  *   body per process, so a correction that is itself wrong cannot loop.
  * - **Never for subagents.** A child session's fence belongs to a parent reply.
@@ -18,8 +18,8 @@
  *   so a re-entrant boundary cannot deliver the same correction twice.
  * - **Cancellation-aware.** An aborted turn or a missing session is left alone.
  *
- * 检查会复用 renderer 在回合结束后的流程，包括 JSON 修复和坏节点清理；
- * 已经可以渲染的最终回复不会收到修正请求。
+ * Checks reuse the renderer's post-turn pipeline, including JSON repair and bad-node cleanup;
+ * a final reply that already renders never receives a correction request.
  * @module @changfenhuang/dsh-genui/plugin/fence-feedback
  */
 
@@ -38,8 +38,8 @@ export const FEEDBACK_SOURCE_KIND = `plugin:${FEEDBACK_PLUGIN_NAME}` as const
 
 /** Marker prefix inside the correction text: `[genui-fence-repair #<fingerprint>]`. */
 const MARKER_PREFIX = '[genui-fence-repair #'
-/** Marker prefix written by older plugin versions. */
-const LEGACY_MARKER_PREFIX = '[genui 自修 #'
+/** Marker prefix written by older plugin versions: `[genui self-repair #<fingerprint>]`. */
+const LEGACY_MARKER_PREFIX = '[genui self-repair #'
 
 /** A fence opener is an info string of exactly `dsh-ui` (≤3 spaces indent). */
 const FENCE_OPEN = /^ {0,3}```[ \t]*dsh-ui[ \t]*$/u
@@ -261,7 +261,7 @@ function isFeedbackSource(source: { kind?: unknown; plugin?: unknown } | undefin
 }
 
 /**
- * 根据插件配置启用围栏反馈流程。
+ * Install the fence feedback loop according to the plugin config.
  *
  * @param ctx - the host context.
  * @param enabled - the plugin config flag; the loop is inert when false.

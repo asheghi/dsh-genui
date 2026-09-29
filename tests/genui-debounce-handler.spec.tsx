@@ -9,7 +9,7 @@ import { GENUI_ACTION_DEBOUNCE_MS, GenuiBlock } from '../src/client/GenuiBlock.t
 import { repairGenuiSpec } from '../src/client/guard.ts'
 
 const spec = repairGenuiSpec({
-  items: [{ type: 'slider', label: '透明度', min: 0, max: 100, value: 10, action: 'opacity' }],
+  items: [{ type: 'slider', label: 'Opacity', min: 0, max: 100, value: 10, action: 'opacity' }],
 })!
 
 beforeEach(() => vi.useFakeTimers())
@@ -70,14 +70,14 @@ describe('action debounce handler lifecycle', () => {
   it('delivers a discrete gesture to the handler active at click time, synchronously', () => {
     const handlerA = vi.fn()
     const handlerB = vi.fn()
-    const buttonSpec = repairGenuiSpec({ items: [{ type: 'button', label: '刷新', action: 'refresh' }] })!
+    const buttonSpec = repairGenuiSpec({ items: [{ type: 'button', label: 'Refresh', action: 'refresh' }] })!
     const view = render(
       <GenuiActionContext.Provider value={handlerA}>
         <GenuiBlock spec={buttonSpec} />
       </GenuiActionContext.Provider>,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '刷新' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     view.rerender(
       <GenuiActionContext.Provider value={handlerB}>
         <GenuiBlock spec={buttonSpec} />

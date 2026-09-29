@@ -31,7 +31,7 @@ function renderWithActions(
 describe('checkbox group aggregation', () => {
   it('preserves and validates checkbox.group through the guard', () => {
     const raw = {
-      items: [{ type: 'checkbox', label: '工序示意式', group: 'fig_types' }],
+      items: [{ type: 'checkbox', label: 'Process diagram', group: 'fig_types' }],
     }
     const repaired = repairGenuiSpec(raw)
     expect(repaired).not.toBeNull()
@@ -39,7 +39,7 @@ describe('checkbox group aggregation', () => {
     expect(validateGenuiSpec(raw).ok).toBe(true)
 
     const invalid = validateGenuiSpec({
-      items: [{ type: 'checkbox', label: '工序示意式', group: 123 }],
+      items: [{ type: 'checkbox', label: 'Process diagram', group: 123 }],
     })
     expect(invalid.ok).toBe(false)
     expect(invalid.errors.join('\n')).toContain('group')
@@ -49,10 +49,10 @@ describe('checkbox group aggregation', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const spec: GenuiSpec = {
       items: [
-        { type: 'checkbox', label: '工序示意式', group: 'fig_types', action: 'ignored-toggle' },
-        { type: 'checkbox', label: '节点大样式', group: 'fig_types' },
-        { type: 'checkbox', label: '透视效果图', group: 'fig_types' },
-        { type: 'submit', label: '锁定', action: 'submit_fig', groups: ['fig_types'] },
+        { type: 'checkbox', label: 'Process diagram', group: 'fig_types', action: 'ignored-toggle' },
+        { type: 'checkbox', label: 'Large node style', group: 'fig_types' },
+        { type: 'checkbox', label: 'Perspective render', group: 'fig_types' },
+        { type: 'submit', label: 'Lock', action: 'submit_fig', groups: ['fig_types'] },
       ],
     }
     const { container } = renderWithActions(spec, actions)
@@ -72,7 +72,7 @@ describe('checkbox group aggregation', () => {
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(actions).toEqual([['submit_fig', {
       type: 'submit',
-      answers: { fig_types: ['工序示意式', '节点大样式'] },
+      answers: { fig_types: ['Process diagram', 'Large node style'] },
       total: 1,
       answered: 1,
     }]])
@@ -84,7 +84,7 @@ describe('checkbox group aggregation', () => {
       items: [
         { type: 'checkbox', label: 'A', group: 'styles' },
         { type: 'checkbox', label: 'B', group: 'styles' },
-        { type: 'submit', label: '锁定', action: 'save', groups: ['styles'] },
+        { type: 'submit', label: 'Lock', action: 'save', groups: ['styles'] },
       ],
     }
     const { container } = renderWithActions(spec, actions)
@@ -107,15 +107,15 @@ describe('checkbox group aggregation', () => {
 
     fireEvent.click(boxes[1]!)
     expect(submit.disabled).toBe(true)
-    expect(container.querySelector('[class*="submitHint"]')?.textContent).toContain('已选 0/1')
+    expect(container.querySelector('[class*="submitHint"]')?.textContent).toContain('0/1 answered')
   })
 
   it('lets an explicitly cleared durable group override checked defaults', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const spec: GenuiSpec = {
       items: [
-        { type: 'checkbox', label: '默认风格', group: 'styles', checked: true },
-        { type: 'submit', label: '锁定', action: 'save', groups: ['styles'] },
+        { type: 'checkbox', label: 'Default style', group: 'styles', checked: true },
+        { type: 'submit', label: 'Lock', action: 'save', groups: ['styles'] },
       ],
     }
 
@@ -141,7 +141,7 @@ describe('checkbox group aggregation', () => {
   it('keeps the legacy per-click action when group is absent', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const spec: GenuiSpec = {
-      items: [{ type: 'checkbox', label: '启用', action: 'toggle' }],
+      items: [{ type: 'checkbox', label: 'Enabled', action: 'toggle' }],
     }
     const { container } = renderWithActions(spec, actions)
     const box = container.querySelector<HTMLInputElement>('input[type="checkbox"]')!
@@ -155,9 +155,9 @@ describe('checkbox group aggregation', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const spec: GenuiSpec = {
       items: [
-        { type: 'radio', label: '单选题', group: 'q1', options: ['A', 'B'], answer: 'B' },
-        { type: 'checkbox', label: '附加项', group: 'extras' },
-        { type: 'submit', label: '提交', action: 'save', groups: ['q1', 'extras'] },
+        { type: 'radio', label: 'Single choice', group: 'q1', options: ['A', 'B'], answer: 'B' },
+        { type: 'checkbox', label: 'Extra item', group: 'extras' },
+        { type: 'submit', label: 'Submit', action: 'save', groups: ['q1', 'extras'] },
       ],
     }
     const { container } = renderWithActions(spec, actions)
@@ -170,7 +170,7 @@ describe('checkbox group aggregation', () => {
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(actions).toEqual([['save', {
       type: 'submit',
-      answers: { q1: 'B', extras: ['附加项'] },
+      answers: { q1: 'B', extras: ['Extra item'] },
       total: 2,
       answered: 2,
     }]])
@@ -179,22 +179,22 @@ describe('checkbox group aggregation', () => {
   it('keeps visible selections and submitted answers aligned after a local reset', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const spec: GenuiSpec = { items: [
-      { type: 'radio', label: '题目', group: 'q1', options: ['A', 'B'], answer: 'A' },
-      { type: 'submit', label: '交卷', groups: ['q1'] },
-      { type: 'checkbox', label: '附加项', group: 'extras' },
-      { type: 'submit', label: '保存附加项', action: 'save', groups: ['extras'] },
+      { type: 'radio', label: 'Question', group: 'q1', options: ['A', 'B'], answer: 'A' },
+      { type: 'submit', label: 'Submit paper', groups: ['q1'] },
+      { type: 'checkbox', label: 'Extra item', group: 'extras' },
+      { type: 'submit', label: 'Save extra item', action: 'save', groups: ['extras'] },
     ] }
     const ui = renderWithActions(spec, actions)
-    fireEvent.click(ui.getByLabelText('附加项'))
+    fireEvent.click(ui.getByLabelText('Extra item'))
     fireEvent.click(ui.container.querySelector('input[type="radio"]')!)
-    fireEvent.click(ui.getByRole('button', { name: '交卷' }))
-    fireEvent.click(ui.getAllByRole('button', { name: '重新作答' })[0]!)
-    expect((ui.getByLabelText('附加项') as HTMLInputElement).checked).toBe(false)
-    expect((ui.getByRole('button', { name: '保存附加项' }) as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(ui.getByLabelText('附加项'))
-    fireEvent.click(ui.getByRole('button', { name: '保存附加项' }))
+    fireEvent.click(ui.getByRole('button', { name: 'Submit paper' }))
+    fireEvent.click(ui.getAllByRole('button', { name: 'Start over' })[0]!)
+    expect((ui.getByLabelText('Extra item') as HTMLInputElement).checked).toBe(false)
+    expect((ui.getByRole('button', { name: 'Save extra item' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(ui.getByLabelText('Extra item'))
+    fireEvent.click(ui.getByRole('button', { name: 'Save extra item' }))
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
-    expect(actions).toEqual([['save', { type: 'submit', answers: { extras: ['附加项'] }, total: 1, answered: 1 }]])
+    expect(actions).toEqual([['save', { type: 'submit', answers: { extras: ['Extra item'] }, total: 1, answered: 1 }]])
   })
 
 })

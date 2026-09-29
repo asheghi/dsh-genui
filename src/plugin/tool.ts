@@ -166,7 +166,7 @@ function formatProcessWarnings(processed: GenuiProcessResult): string[] {
   })
 }
 
-/** 将行内字段的块级 Markdown 诊断写入稳定的验证协议。 */
+/** Emit block-level Markdown diagnostics for inline fields into the stable validation protocol. */
 function formatInlineContentWarnings(spec: GenuiSpec): string[] {
   return collectInlineContentWarnings(spec).map(warning =>
     `warning=block_markdown path=${warning.path} kind=${warning.kind} replacement=${warning.replacement}`)
@@ -187,7 +187,7 @@ function formatProcessFailure(processed: GenuiProcessResult): string | undefined
 function cardTitle(args: unknown): string | undefined {
   const processed = processRenderableValue(specOf(args))
   if (!isRenderableProcess(processed) || processed.spec === null) return undefined
-  return `渲染 UI：${processed.spec.title ?? '未命名'}`
+  return `Render UI: ${processed.spec.title ?? 'Untitled'}`
 }
 
 /**
@@ -415,10 +415,10 @@ export function createValidateDshUiTool(): ToolDefinition {
       ])
     },
     presentCall(): GenericCallView | undefined {
-      return { card: 'generic', title: '验证 dsh-ui 围栏', kind: 'other' }
+      return { card: 'generic', title: 'Validate dsh-ui fence', kind: 'other' }
     },
     presentResult(): GenericResultView | undefined {
-      return { card: 'generic', title: '验证 dsh-ui 围栏' }
+      return { card: 'generic', title: 'Validate dsh-ui fence' }
     },
   }
 }

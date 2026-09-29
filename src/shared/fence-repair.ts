@@ -36,7 +36,7 @@ export function describeJsonFailure(raw: string): string | null {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     const pos = msg.match(/position (\d+)/i)
-    const where = pos !== null ? `（字符 ${pos[1]} 附近）` : ''
+    const where = pos !== null ? ` (near character ${pos[1]})` : ''
     return `${where}${msg.slice(0, 140)}`
   }
 }
@@ -47,8 +47,8 @@ export function describeJsonFailure(raw: string): string | null {
  * when the whole body parses afterwards (so a still-growing streaming half
  * can never be adopted):
  *
- * 1. Unescaped half-width `"` inside a string value — Chinese text quoted
- *    with ASCII quotes (e.g. `对"别名路径"判定失败`), which makes JSON.parse
+ * 1. Unescaped half-width `"` inside a string value — CJK text quoted
+ *    with ASCII quotes (e.g. `\u5bf9"\u522b\u540d\u8def\u5f84"\u5224\u5b9a\u5931\u8d25`), which makes JSON.parse
  *    fail near that quote with "Expected ',' or ']'...".
  * 2. Trailing commas before `}` / `]` or at end of input.
  *
@@ -253,7 +253,7 @@ export function completeFenceJson(raw: string): { text: string; repairs: number 
       JSON.parse(tetris.text)
       return tetris
     } catch {
-      // Tetris 形状修复可能暴露需要 tier-2 继续处理的结构问题。
+      // Tetris-shaped repair may expose structural problems that need tier-2 follow-up.
     }
     const scanned = completeFenceJson(tetris.text)
     if (scanned === null) return null

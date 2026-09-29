@@ -262,7 +262,7 @@ export const COMPONENT_SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   button: schema(['label'], { ...nodeFields, label: 'string', tone: 'string', full: 'boolean', small: 'boolean', icon: 'string', action: 'string' }, {}, { enums: { tone: BUTTON_TONES } }),
   // `text`/`body`/`desc` are the model's default names for "the callout's
   // prose": a callout missing `content` is dropped by repair, which takes the
-  // WHOLE fence down with it (issue: dsh-ui 围栏字段名). Adopt them as aliases.
+  // WHOLE fence down with it (issue: dsh-ui fence field names). Adopt them as aliases.
   // `tone` value aliases: card/hero/badge/button all accept `danger` (and
   // badge uses `warn`), so models cross-write them onto callout — map them
   // onto the closest canonical tone instead of failing the enum (issue #186).

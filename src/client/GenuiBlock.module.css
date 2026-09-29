@@ -829,8 +829,9 @@ img.mediaPlayer { aspect-ratio: 16 / 9; object-fit: cover; background: var(--dsl
 }
 
 /* ---------- callout ----------
-   语义由「底色 + 标题色」表达，不用左侧竖条：竖条是 PPT 式装饰，底色与
-   文字色才是信息层级。 */
+   Meaning is carried by background color + title color, with no left rail:
+   a rail is slide-deck decoration, while background and text color are what
+   actually express hierarchy. */
 
 .callout {
   display: flex;
@@ -1282,7 +1283,7 @@ img.mediaPlayer { aspect-ratio: 16 / 9; object-fit: cover; background: var(--dsl
   border-radius: 50%;
 }
 
-/* ---------- submit（交卷聚合 / 本地判卷） ---------- */
+/* ---------- submit (answer aggregation / local grading) ---------- */
 
 .submitRow { display: flex; align-items: center; gap: var(--dsl-g-gap-md); margin-top: 2px; }
 .submit { align-self: flex-start; }
@@ -1713,13 +1714,13 @@ button.ftNameBtn[aria-expanded] { cursor: pointer; }
   animation: genuiReveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-/* "✓ 已触发" confirmation chip: appears next to the button without layout
+/* "✓ Sent" confirmation chip: appears next to the button without layout
    shift risk (it inherits the flex row's gap). `backwards`, not `both`: the
    chip's natural (post-animation) style is already visible/no-transform, so
    pinning the end keyframe would only retain an unnecessary transform. */
 .btnSent { animation: genuiPopIn 0.2s ease backwards; }
 
-/* 尊重用户的减弱动效偏好 */
+/* Honor the user's reduced-motion preference */
 @media (prefers-reduced-motion: reduce) {
   .reveal { animation: none; }
   .btnSent { animation: none; }
@@ -1936,7 +1937,7 @@ button.ftNameBtn[aria-expanded] { cursor: pointer; }
   display: flex;
   align-items: center;
   /* Header/body divider so the panel reads as a card with a title bar, not a
-     slab with text glued to it (user report: "body 缺少内边框"). */
+     slab with text glued to it (user report: "body is missing its inner border"). */
   border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(127, 127, 127, 0.25));
 }
 

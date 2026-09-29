@@ -1,10 +1,6 @@
-# 🎨 dsh-genui
+# dsh-genui
 
 <div align="center">
-
-**English** · [简体中文](./README.zh-CN.md)
-
-<br>
 
 [**Open the live product site**](https://omdsh-dev.github.io/dsh-genui/) · [**Watch the real demo**](#watch-the-real-interface) · [**Install in DSH**](#quick-start)
 

@@ -1,137 +1,137 @@
-# DSH GenUI 稳定性、性能与发布加固执行计划
+# DSH GenUI Stability, Performance, and Release Hardening Execution Plan
 
-> 状态：可执行
-> 审计基线：插件仓 `1aade42fd73c087b3f3bd7284da5c470285f0c6e`（`0.3.4`）；执行仍须重新 fetch 最新远端
-> 执行者：DSH
-> 计划日期：2026-08-11 至 2026-08-12
-> 目标版本：`0.4.0` 候选；未获明确授权前不合并、不打标签、不发布
+> Status: actionable
+> Audit baseline: plugin repo `1aade42fd73c087b3f3bd7284da5c470285f0c6e` (`0.3.4`); execution must still re-fetch the latest remote
+> Executor: DSH
+> Plan dates: 2026-08-11 through 2026-08-12
+> Target version: `0.4.0` candidate; do not merge, tag, or publish without explicit authorization
 
-## 1. 结论
+## 1. Conclusion
 
-这不是一轮“继续加组件”，而是一轮收口。执行完成后，插件应从“功能多但边界不稳”提升到“面板顺序可靠、表单不串状态、中文输入不误提交、恶意/残缺输入不会卡住页面、安装和发布可以被重复验证”的状态。
+This is not another round of "keep adding components" but a round of closing things out. Once execution completes, the plugin should rise from "many features but unstable boundaries" to "panel ordering is reliable, forms do not share state, Chinese input does not submit by mistake, malicious/truncated input cannot hang the page, and installation and release can be verified repeatedly."
 
-必须按以下顺序串行推进：
+The following order must be advanced serially:
 
-1. 先在 DSH 主仓补齐围栏的稳定来源身份与真实顺序。
-2. 再在插件仓重做面板发布模型，根治追加丢失、重放重复、`Infinity` 锁死和无限增长。
-3. 再修表单、持久化、中文输入和密码收集边界。
-4. 再处理解析器、3D 空转和指针监听性能。
-5. 最后做构建、包体、安装器、E2E、CI、文档和发布事实对齐。
+1. First, complete the fence's stable source identity and true ordering in the DSH main repo.
+2. Then redo the panel publishing model in the plugin repo, fixing append loss, replay duplication, `Infinity` deadlock, and unbounded growth at the root.
+3. Then fix forms, persistence, Chinese input, and password collection boundaries.
+4. Then address the parser, idle 3D, and pointer listener performance.
+5. Finally align the build, bundle size, installer, E2E, CI, documentation, and release facts.
 
-任何阶段都不得用随机 ID、内容哈希、时间戳、兼容层或“先忽略失败”的方式绕过根因。
+No stage may bypass the root cause using random IDs, content hashes, timestamps, compatibility layers, or "ignore failures for now."
 
-## 2. 已验证基线
+## 2. Verified Baseline
 
-| 项目 | 当前事实 | 用户影响 |
+| Item | Current fact | User impact |
 |---|---|---|
-| 本地测试 | 24 个测试文件、208 项测试通过 | 现有测试全绿，但没有覆盖本计划中的交叉条件 |
-| 类型与构建 | TypeScript、tsdown 均能完成 | tsdown 有 3 个废弃配置警告 |
-| 浏览器包 | `lib/client.js` 约 9.02 MB，gzip 约 1.72 MB | Mermaid、Three 被折入唯一浏览器包；“懒加载”不等于懒下载 |
-| npm 包 | 最近一次 dry-run：114 文件、4.82 MB 压缩、25.16 MB 解包 | 带入 15.16 MB sourcemap、源码、中间 JS、map 和构建缓存 |
-| 工作区 | 2026-08-12 00:14 观察到外部变化：本地 main 领先 `origin/main` 1 个生成物提交 `692a2b7`，另有未提交 `scripts/e2e.mjs` onboarding 改动 | 都不是本计划文档产生；实施必须保留现场、用独立 worktree，不得 reset、覆盖或冒充本计划改动 |
-| 面板追加 | 插件把每条 Markdown 内部的局部 `key` 当成会话级来源 ID | 两条消息都在第 0 块追加时，第二条会被当成重复而丢失 |
-| 面板重放 | 每个会话只记“最后一个追加来源” | A→B→A 会再次追加 A |
-| 面板顺序 | 围栏默认以 `Infinity` 发布 | 一次围栏发布后，未来所有有限序号的 `render_ui` 结果都无法更新面板 |
-| 面板上限 | 每条输入先修复到 200 节点，但合并后不再限总量 | 多轮 append 可无限增长并拖慢页面 |
-| 表单 | tabs 创建时漏传块级答案状态 | 标签页内 grouped radio、字段收集、submit、本地判卷断链 |
-| 状态 | 面板内容指纹变化但 `GenuiBlock` 不重挂载 | 旧答案、旧字段、锁定状态会写进新内容的持久化 key |
-| 中文输入 | Enter/Cmd+Enter 未完整保护输入法组合态 | 中文选词的 Enter 可能被当成提交 |
-| 敏感信息 | 支持 password 输入，且所有带 id 字段都明文进 localStorage | 模型生成的界面可收集并持久化密码 |
-| partial 解析 | 对每个 `}` 重扫前缀并反复 `JSON.parse` | 24 KB 病态输入实测约 1.68 秒，复杂度为 O(n²) |
-| 3D | 静态场景永久运行 requestAnimationFrame | 不操作时仍持续占用 GPU/电池 |
-| 安装脚本 | 对不同目标的符号链接直接 `cp` | 可能覆盖链接所指向的用户文件 |
-| E2E | 声明日志路径，但子进程输出被丢弃；点击后的本地文字变化可满足“响应”判断 | 失败时无日志，并可能假通过 |
-| DSH 最低版本 | README 写 `47d230e`，但当前 `dsh.client` 清单至少需 `0545fdcb` | 用户按文档安装仍可能加载失败；本计划的宿主契约落地后最低版本还会再次上移 |
-| 远端 CI | 最近三次运行在 runner 分配前被 GitHub Billing 拦截 | 远端没有实际执行过任何门禁，不能视为 CI 通过 |
+| Local tests | 24 test files, 208 tests pass | Existing tests are all green, but they do not cover the cross conditions in this plan |
+| Types and build | TypeScript and tsdown both complete | tsdown has 3 deprecated config warnings |
+| Browser bundle | `lib/client.js` about 9.02 MB, gzip about 1.72 MB | Mermaid and Three are folded into the single browser bundle; "lazy load" does not mean lazy download |
+| npm package | Most recent dry-run: 114 files, 4.82 MB packed, 25.16 MB unpacked | Brings in 15.16 MB of sourcemaps, source, intermediate JS, maps, and build cache |
+| Workspace | At 2026-08-12 00:14 external changes were observed: local main is 1 generated-artifact commit `692a2b7` ahead of `origin/main`, plus uncommitted `scripts/e2e.mjs` onboarding changes | Neither came from this plan document; implementation must preserve the scene, use an independent worktree, and must not reset, overwrite, or pass these off as changes from this plan |
+| Panel append | The plugin treats each Markdown document's local `key` as a session-level source ID | When both messages append at block 0, the second is treated as a duplicate and lost |
+| Panel replay | Each session records only "the last append source" | A→B→A appends A again |
+| Panel ordering | Fences publish with `Infinity` by default | After one fence publish, all future `render_ui` results with finite sequence numbers can no longer update the panel |
+| Panel limit | Each input is first repaired to 200 nodes, but after merging there is no total cap | Repeated appends across rounds can grow without bound and slow the page |
+| Forms | tabs creation misses passing block-level answer state | Inside a tab, grouped radio, field collection, submit, and local grading are broken |
+| State | Panel content fingerprint changes but `GenuiBlock` does not remount | Old answers, old fields, and locked state are written into the persistence key of the new content |
+| Chinese input | Enter/Cmd+Enter does not fully protect the IME composition state | The Enter that picks a Chinese candidate may be treated as a submit |
+| Sensitive information | password input is supported, and every field with an id goes to localStorage in plaintext | Model-generated UI can collect and persist passwords |
+| partial parsing | Rescans the prefix for every `}` and calls `JSON.parse` repeatedly | A 24 KB pathological input measured about 1.68 seconds; complexity is O(n²) |
+| 3D | A static scene runs requestAnimationFrame forever | Still consumes GPU/battery while idle |
+| Install script | Directly `cp` over symlinks with a different target | May overwrite the user file the link points to |
+| E2E | Declares a log path, but child process output is discarded; a local text change after a click can satisfy the "responded" check | No logs on failure, and possible false passes |
+| Minimum DSH version | README says `47d230e`, but the current `dsh.client` manifest requires at least `0545fdcb` | Users following the docs may still fail to load; once this plan's host contract lands the minimum version moves up again |
+| Remote CI | The last three runs were blocked by GitHub Billing before runner allocation | No gate has actually executed remotely, so CI cannot be considered passing |
 
-## 3. 最终完成定义
+## 3. Definition of Done
 
-只有同时满足以下条件，才能说这轮完成：
+Only when all of the following hold can this round be called complete:
 
-- 两条不同消息即使局部 fence key 都是 `0`，也会各追加一次。
-- A→B→A、StrictMode、刷新、虚拟列表重挂载、乱序重放都不会重复或丢失。
-- 后出现的 `render_ui` 可以覆盖更早的 panel fence；不再存在 `Infinity`。
-- 合并后的整个面板始终不超过 200 个节点。
-- tabs 内表单、根层表单和 accordion 内表单行为一致。
-- 新内容不会继承或污染旧内容的答案、字段和锁定状态；相同内容仍可恢复自己的状态。
-- 中文输入法选词不会触发 input Enter 或 textarea Cmd/Ctrl+Enter 提交。
-- `password` 不再属于公开 spec，也不会被修复成普通文本框继续显示；模型提示与 Skill 明确禁止索取秘密。
-- 24 KB 病态 partial 输入的 `JSON.parse` 尝试次数有确定上限，页面不再出现秒级卡顿。
-- 静止 3D 场景没有永久动画帧；拖拽和滚轮时仍正常重绘。
-- 安装脚本遇到不同目标或悬空符号链接时安全失败，外部哨兵文件保持不变。
-- 连续构建 5 次的 `lib/client.js` SHA 完全一致。
-- 发布包不含 `src/`、`.map`、`.tsbuildinfo` 或 `lib/types/**/*.js`；压缩包 <3 MB，解包 <10 MB。
-- E2E 只有在“真实新助手回复/新面板结果”出现时才通过；失败日志可读且没有残留进程。
-- 发布证据最终固定为一个兼容元组：`插件发布 SHA + DSH 最低宿主 SHA`；插件包、变更记录、标签、Release 和安装验证指向插件 SHA，README/兼容矩阵单独固定宿主 SHA。
-- GitHub Actions 获得真实 runner 并完整跑完；`steps: []` 不算 CI。
+- Two different messages each append once even when their local fence key is both `0`.
+- A→B→A, StrictMode, refresh, virtual list remount, and out-of-order replay neither duplicate nor lose.
+- A later `render_ui` can override an earlier panel fence; `Infinity` no longer exists.
+- The entire merged panel never exceeds 200 nodes.
+- Forms inside tabs, at the root level, and inside accordion behave identically.
+- New content does not inherit or pollute the old content's answers, fields, and locked state; identical content can still restore its own state.
+- Chinese IME candidate selection does not trigger input Enter or textarea Cmd/Ctrl+Enter submit.
+- `password` is no longer part of the public spec, and is not repaired into a normal text box that keeps displaying; the model prompt and the Skill explicitly forbid requesting secrets.
+- A 24 KB pathological partial input has a definite upper bound on `JSON.parse` attempts, and the page no longer stalls for seconds.
+- A static 3D scene has no permanent animation frame; dragging and wheel still redraw normally.
+- The install script fails safely on a different target or a dangling symlink, and the external sentinel file stays unchanged.
+- The `lib/client.js` SHA is identical across 5 consecutive builds.
+- The published package does not contain `src/`, `.map`, `.tsbuildinfo`, or `lib/types/**/*.js`; packed <3 MB, unpacked <10 MB.
+- E2E passes only when a "genuine new assistant reply/new panel result" appears; failure logs are readable and no processes are left behind.
+- Release evidence finally pins one compatibility tuple: `plugin release SHA + minimum DSH host SHA`; the plugin package, changelog, tag, Release, and installation verification point to the plugin SHA, while README/compatibility matrix pins the host SHA separately.
+- GitHub Actions obtains a real runner and runs to completion; `steps: []` does not count as CI.
 
-## 4. 范围与明确不做
+## 4. Scope and Explicit Non-Goals
 
-### 本轮包含
+### Included in this round
 
-- DSH 主仓的围栏来源契约。
-- 插件客户端的面板、表单、持久化、IME、解析器、3D 和拖拽路径。
-- 插件构建、依赖、发布包、安装脚本、E2E、CI、README、Skill、系统提示和变更记录。
-- 新增覆盖根因的最小回归测试与真实隔离环境验收。
+- The fence source contract in the DSH main repo.
+- The plugin client's panel, forms, persistence, IME, parser, 3D, and drag paths.
+- Plugin build, dependencies, published package, install script, E2E, CI, README, Skill, system prompt, and changelog.
+- Minimal regression tests covering the root causes plus real isolated-environment acceptance.
 
-### 本轮不做
+### Not in this round
 
-- 不新增状态管理库、ID 库、解析器库、3D 控制器库或虚拟列表库。
-- 不做模型 patch/diff 协议，不做新的兼容层。
-- 不用 `Date.now()`、随机数、`useId()`、内容哈希代替消息身份。
-- 不用 CDN 拆 Mermaid/Three，不手写另一套“轻量 3D”。
-- 不改正在运行的 3080 服务，不 broad `pkill`，不占用用户当前浏览器窗口。
-- 本轮默认保留 `scene3d` 产品能力，只修永久 60fps；是否删除放在独立决策门。
-- 未获肠粉明确授权，不合并、不打 tag、不发布、不重启用户正在使用的 DSH 服务。
+- No new state management library, ID library, parser library, 3D controller library, or virtual list library.
+- No model patch/diff protocol, no new compatibility layer.
+- Do not use `Date.now()`, random numbers, `useId()`, or content hashes in place of message identity.
+- Do not split Mermaid/Three via CDN, and do not hand-write another "lightweight 3D".
+- Do not touch the running 3080 service, do not broad `pkill`, and do not take over the user's current browser window.
+- This round keeps the `scene3d` product capability by default and only fixes the permanent 60fps; whether to delete it goes through a separate decision gate.
+- Without explicit authorization from Changfenhuang, do not merge, do not tag, do not publish, and do not restart the DSH service the user is using.
 
-## 5. 目标数据流
+## 5. Target Data Flow
 
 ```mermaid
 flowchart LR
-  A["已结束的 Assistant 消息"] --> B["DSH 宿主生成稳定 FenceSource"]
-  T["已结束的 render_ui 工具结果"] --> O["PanelOperation"]
+  A["Settled Assistant message"] --> B["DSH host produces a stable FenceSource"]
+  T["Settled render_ui tool result"] --> O["PanelOperation"]
   B --> P["PanelFencePublisher effect"]
   P --> O
-  C["/panel 本地命令"] --> L["Local override / clear barrier"]
-  O --> M["会话级 operation Map"]
+  C["/panel local command"] --> L["Local override / clear barrier"]
+  O --> M["Session-level operation Map"]
   L --> M
-  M --> S["按 message seq / text block / fence 排序"]
-  S --> R["replace 或复用 mergePanelSpecs"]
-  R --> G["整面板 200 节点门禁"]
-  G --> V["同一个会话面板快照"]
+  M --> S["Sort by message seq / text block / fence"]
+  S --> R["replace or reuse mergePanelSpecs"]
+  R --> G["Whole-panel 200 node gate"]
+  G --> V["One session panel snapshot"]
 ```
 
-核心原则：面板是“按稳定事件折叠出的结果”，不是“谁最后触发 React render 谁赢”。
+Core principle: the panel is "a result folded from stable events", not "whoever triggered the React render last wins".
 
-## 6. 串行交付结构
+## 6. Serial Delivery Structure
 
-| 阶段 | 仓库 | 交付物 | 依赖 | 发布阻塞 |
+| Stage | Repo | Deliverable | Depends on | Release blocking |
 |---|---|---|---|---|
-| 0 | 两边 | 干净基线与证据 | 无 | 是 |
-| 1 | DSH 主仓 | 稳定围栏来源身份与顺序 | 0 | 是 |
-| 2 | 插件仓 | 面板操作表、真实排序、总量上限 | 1 | 是 |
-| 3 | 插件仓 | 表单、状态、IME、密码边界 | 2 | 是 |
-| 4 | 插件仓 | partial、3D、pointer 性能 | 3 | 是 |
-| 5 | 插件仓 | 确定构建、包体、依赖、安装安全 | 4 | 是 |
-| 6 | 两边/CI | E2E、文档、兼容矩阵、发布候选 | 5 + Billing 恢复 | 是 |
+| 0 | Both | Clean baseline and evidence | None | Yes |
+| 1 | DSH main repo | Stable fence source identity and ordering | 0 | Yes |
+| 2 | Plugin repo | Panel operation table, true ordering, total cap | 1 | Yes |
+| 3 | Plugin repo | Forms, state, IME, password boundaries | 2 | Yes |
+| 4 | Plugin repo | partial, 3D, pointer performance | 3 | Yes |
+| 5 | Plugin repo | Deterministic build, bundle size, dependencies, install safety | 4 | Yes |
+| 6 | Both/CI | E2E, documentation, compatibility matrix, release candidate | 5 + Billing restored | Yes |
 
-阶段内部可以有多个原子提交，但不得跨阶段并行修改同一核心文件。
+A stage may contain multiple atomic commits, but the same core file must not be modified in parallel across stages.
 
 ---
 
-## 阶段 0：建立不污染用户现场的执行基线
+## Stage 0: Establish an Execution Baseline That Does Not Pollute the User's Scene
 
-### 0.1 使用独立 worktree
+### 0.1 Use an Independent worktree
 
-1. 在插件仓执行 `git fetch --prune origin`。
-2. 记录 `origin/main` 的完整 SHA。
-3. 从最新 `origin/main` 建独立 `codex/` 前缀分支和临时 worktree；先单独记录本地主工作区的 `692a2b7` 与 `scripts/e2e.mjs` WIP，不自动 cherry-pick，也不删除。
-4. DSH 主仓同样从最新远端建独立 worktree。
-5. 保留当前主工作区所有本地提交/WIP；禁止 `git reset --hard`、`git checkout --` 或清理这些文件。生成物提交是否吸收，等 5.1 确定构建完成后按源码与 SHA 证据判断；E2E onboarding WIP 在 6.1 合并意图，不直接覆盖。
+1. Run `git fetch --prune origin` in the plugin repo.
+2. Record the full SHA of `origin/main`.
+3. Create an independent `codex/`-prefixed branch and temporary worktree from the latest `origin/main`; first record the local main workspace's `692a2b7` and the `scripts/e2e.mjs` WIP separately, do not auto cherry-pick and do not delete.
+4. Create an independent worktree for the DSH main repo from the latest remote as well.
+5. Preserve all local commits/WIP in the current main workspace; `git reset --hard`, `git checkout --`, or cleaning these files is forbidden. Whether to absorb the generated-artifact commit is judged in 5.1 from source and SHA evidence once the deterministic build is done; the E2E onboarding WIP is decided in 6.1, without directly overwriting.
 
-### 0.2 记录基线
+### 0.2 Record the baseline
 
-插件仓至少记录：
+In the plugin repo, record at least:
 
 ```sh
 git status --short --branch
@@ -144,7 +144,7 @@ gzip -c lib/client.js | wc -c
 npm pack --dry-run --json
 ```
 
-DSH 主仓至少记录：
+In the DSH main repo, record at least:
 
 ```sh
 git status --short --branch
@@ -153,21 +153,21 @@ corepack pnpm exec vitest run packages/client/ui-primitives packages/client/ui-c
 corepack pnpm run typecheck
 ```
 
-### 0.3 失败处理
+### 0.3 Failure handling
 
-- 基线若因现有代码失败，先记录原始错误，不把它归因于本计划。
-- 依赖或网络失败要明确区分；不得通过跳过测试继续宣称完成。
-- 当前远端若已变化，以实际最新 SHA 为准，并重新核对本计划引用的调用链。
+- If the baseline fails due to existing code, first record the original error and do not attribute it to this plan.
+- Dependency or network failures must be clearly distinguished; skipping tests and then claiming completion is forbidden.
+- If the current remote has already changed, take the actual latest SHA as authoritative and re-verify the call chains referenced by this plan.
 
 ---
 
-## 阶段 1：在 DSH 主仓提供稳定的围栏来源契约
+## Stage 1: Provide a Stable Fence Source Contract in the DSH Main Repo
 
-### 1.1 改动目标
+### 1.1 Change goal
 
-当前 `FenceRenderer` 只收到 `raw + React key`。React key 只在一条 Markdown 文档内有效，不能承担会话级业务身份。
+Currently `FenceRenderer` only receives `raw + React key`. The React key is only valid within one Markdown document and cannot carry session-level business identity.
 
-在 DSH 主仓的围栏注册模块新增：
+In the DSH main repo's fence registry module, add:
 
 ```ts
 export interface FenceSource {
@@ -188,57 +188,57 @@ export type FenceRenderer = (
 ) => ReactNode
 ```
 
-不用兼容旧的双参数调用；主仓和当前唯一消费者一次性切换。
+Do not keep a compatible two-argument call; switch the main repo and its only consumer in one go.
 
-### 1.2 身份规则
+### 1.2 Identity rules
 
-- session-scoped Assistant render 必须显式提供 `context.sessionId`；它只负责路由，不能继续从全局 active session 推断。
-- 只在 settled 或 interrupted Assistant 已有稳定 `finalNode.seq` 时提供 `source`。
-- streaming 阶段继续渲染普通 inline GenUI：`sessionId` 可用但 `source` 为空，插件不得写面板或 durable state。
-- `source.id` 使用稳定结构，例如：
+- A session-scoped Assistant render must explicitly provide `context.sessionId`; it is only responsible for routing and must no longer infer from the global active session.
+- Provide `source` only when a settled or interrupted Assistant already has a stable `finalNode.seq`.
+- During streaming, keep rendering ordinary inline GenUI: `sessionId` is available but `source` is empty, and the plugin must not write the panel or durable state.
+- `source.id` uses a stable structure, for example:
 
 ```ts
 JSON.stringify(['assistant', finalMessageSeq, textBlockIndex, fenceIndex])
 ```
 
-- `source.order` 为 `[finalMessageSeq, textBlockIndex, fenceIndex]`。
-- 会话 ID 是插件面板仓库第一层键，通过 context 单独传递，不重复塞进 `source.id`。
-- `fenceIndex` 必须来自 settled 文档中的稳定围栏顺序，不得使用随机数、挂载次数或时间。
+- `source.order` is `[finalMessageSeq, textBlockIndex, fenceIndex]`.
+- The session ID is the first-level key of the plugin panel store; pass it separately through context and do not stuff it into `source.id` again.
+- `fenceIndex` must come from the stable fence order in the settled document, and must not use random numbers, mount counts, or time.
 
-### 1.3 涉及文件
+### 1.3 Files involved
 
-DSH 主仓：
+DSH main repo:
 
-- 围栏注册接口：`packages/client/ui-primitives/src/markdown/fence-registry.ts`
-- Markdown 渲染调用：`packages/client/ui-primitives/src/markdown/render.tsx`
-- Markdown 组件入口：`packages/client/ui-primitives/src/markdown/MarkdownText.tsx`
-- 助手块桥接：`packages/client/ui-conversation/src/client/chat/AssistantMarkdown.tsx`
-- 助手节点入口：`packages/client/ui-conversation/src/client/chat/AssistantNodeView.tsx`
-- 对应 ui-primitives / ui-conversation 测试。
+- Fence registry interface: `packages/client/ui-primitives/src/markdown/fence-registry.ts`
+- Markdown render call: `packages/client/ui-primitives/src/markdown/render.tsx`
+- Markdown component entry: `packages/client/ui-primitives/src/markdown/MarkdownText.tsx`
+- Assistant block bridge: `packages/client/ui-conversation/src/client/chat/AssistantMarkdown.tsx`
+- Assistant node entry: `packages/client/ui-conversation/src/client/chat/AssistantNodeView.tsx`
+- Corresponding ui-primitives / ui-conversation tests.
 
-### 1.4 实施步骤
+### 1.4 Implementation steps
 
-1. `AssistantNodeView` 从 session-scoped 标准 props 读取真实 `sessionId` 并始终向下传；只在 `data.finalNode` 存在时再传稳定消息 seq。
-2. `AssistantMarkdown` 继续透传真实 sessionId，并在遍历 text blocks 时加入 `textBlockIndex`。
-3. `MarkdownText` 把 sessionId 与消息前缀带入 render context；无这些 props 的其他 Markdown 使用场景继续正常渲染，但没有会话路由或业务来源。
-4. `renderCode` 为每个 `dsh-ui` 围栏生成 `FenceSource` 并调用三参数 renderer。
-5. 更新注册接口的 JSDoc：React key 只负责 reconciliation，`source` 才负责持久业务身份。
-6. 更新所有测试 renderer 和唯一插件消费者的类型。
+1. `AssistantNodeView` reads the real `sessionId` from session-scoped standard props and always passes it down; it passes the stable message seq only when `data.finalNode` exists.
+2. `AssistantMarkdown` keeps passing the real sessionId through, and adds `textBlockIndex` while iterating text blocks.
+3. `MarkdownText` carries the sessionId and message prefix into the render context; other Markdown usages without these props keep rendering normally, but have no session routing or business source.
+4. `renderCode` produces a `FenceSource` for each `dsh-ui` fence and calls the three-argument renderer.
+5. Update the registry interface JSDoc: the React key is only responsible for reconciliation, while `source` is responsible for durable business identity.
+6. Update the types of all test renderers and the single plugin consumer.
 
-### 1.5 必须新增的宿主测试
+### 1.5 Host tests that must be added
 
-| 用例 | 断言 |
+| Case | Assertion |
 |---|---|
-| 两条 settled 消息都只有第 0 个围栏 | 两个 `source.id` 不同 |
-| 一条消息有两个 text block，各有围栏 | text block 维度不同 |
-| 一个 text block 有两个围栏 | fence 维度不同，order 保持文档顺序 |
-| 同一 settled 消息重复 render | ID 与 order 完全一致 |
-| 两个会话交错渲染相同 seq/块/围栏位置 | source 可相同，但 context.sessionId 各自正确，发布绝不串会话 |
-| streaming → settled | streaming source 为空；settled 才出现一次稳定 source |
-| interrupted 消息重放 | source 稳定 |
-| 普通 MarkdownText 使用场景 | 没有 source 也不崩溃、仍渲染代码块/inline UI |
+| Both settled messages have only fence 0 | The two `source.id` differ |
+| One message has two text blocks, each with a fence | The text block dimension differs |
+| One text block has two fences | The fence dimension differs and order keeps document order |
+| Re-render the same settled message | ID and order are exactly identical |
+| Two sessions interleave rendering the same seq/block/fence position | source may be identical, but context.sessionId is correct for each, and publishing never crosses sessions |
+| streaming → settled | streaming source is empty; only settled produces one stable source |
+| Replay of an interrupted message | source is stable |
+| Ordinary MarkdownText usage | No source, does not crash, still renders code blocks/inline UI |
 
-### 1.6 阶段验收
+### 1.6 Stage acceptance
 
 ```sh
 corepack pnpm exec vitest run packages/client/ui-primitives packages/client/ui-conversation
@@ -246,23 +246,23 @@ corepack pnpm run typecheck
 corepack pnpm run lint
 ```
 
-完成后记录宿主提交完整 SHA。插件最终 README 的最低 DSH 版本必须指向“包含这个 SHA 的版本”，不能继续写 `47d230e` 或用“commit >= SHA”表达。
+After completion, record the full host commit SHA. The plugin's final README minimum DSH version must point to "the version containing this SHA", and must not keep writing `47d230e` or use "commit >= SHA".
 
-### 1.7 禁止方案
+### 1.7 Forbidden approaches
 
-- 不用 `String(key)`。
-- 不用 raw 内容哈希；不同消息的相同内容仍是两次独立追加。
-- 不用 `useId()`、模块自增计数器、随机数或 `Date.now()`。
-- 不调用 `getActiveSessionId()` 为围栏猜会话；宿主 context 缺少 sessionId 时只能降级为不持久化、不发布面板。
-- 不为了保留流式面板写入而引入 generation/retry 状态机；面板只在 settled 后提交。
+- Do not use `String(key)`.
+- Do not use a raw content hash; identical content in different messages is still two independent appends.
+- Do not use `useId()`, a module-level auto-increment counter, random numbers, or `Date.now()`.
+- Do not call `getActiveSessionId()` to guess the session for a fence; when the host context lacks a sessionId, degrade to not persisting and not publishing the panel.
+- Do not introduce a generation/retry state machine just to preserve streaming panel writes; the panel commits only after settled.
 
 ---
 
-## 阶段 2：重做插件面板发布模型
+## Stage 2: Redo the Plugin Panel Publishing Model
 
-### 2.1 新的会话操作模型
+### 2.1 The new session operation model
 
-删除“当前 spec + `lastAppendSource` + `Infinity`”模型，改为稳定来源操作：
+Delete the "current spec + `lastAppendSource` + `Infinity`" model and replace it with stable source operations:
 
 ```ts
 type PanelOrder = readonly [number, number, number]
@@ -275,28 +275,28 @@ interface PanelOperation {
 }
 ```
 
-每个 session 保存：
+Each session stores:
 
-- `Map<sourceId, PanelOperation>`：持久消息/工具操作。
-- 至多一个 append overflow barrier：保留首个因节点数或操作数超限而被拒绝的完整 `PanelOperation`，供更早的乱序 replace 到达时重新做确定性折叠。
-- 本地 `/panel` override：默认面板或 clear，以及它屏蔽到的最大 message seq。
-- 当前折叠后的只读 snapshot。
+- `Map<sourceId, PanelOperation>`: durable message/tool operations.
+- At most one append overflow barrier: keep the first complete `PanelOperation` rejected because the node count or operation count exceeded the limit, so that a deterministic re-fold can be redone when an earlier out-of-order replace arrives.
+- Local `/panel` override: the default panel or clear, plus the maximum message seq it masked.
+- The currently folded read-only snapshot.
 
-### 2.2 围栏发布不得发生在 render 函数里
+### 2.2 Fence publishing must not happen inside the render function
 
-在插件围栏入口中：
+In the plugin fence entry:
 
-1. 普通 inline spec 继续返回 UI。
-2. `panel:true` 且宿主 `context.sessionId` 或 `source` 任一缺失时返回 `null`，不写仓库。
-3. 两者都存在时返回一个 keyed publisher 组件，并把 context 中的真实 sessionId 作为明确 prop；不得在 effect 执行时再读取全局 active session。
-4. publisher 在 `useEffect` 中向该 session 提交 `PanelOperation`，自身返回 `null`。
-5. StrictMode 重复 effect 由 operation Map 的 source 去重，不得重复通知。
+1. Ordinary inline specs keep returning UI.
+2. When `panel:true` and either the host `context.sessionId` or `source` is missing, return `null` and do not write the store.
+3. When both exist, return a keyed publisher component and pass the real sessionId from context as an explicit prop; do not read the global active session again when the effect runs.
+4. The publisher submits a `PanelOperation` to that session inside `useEffect` and returns `null` itself.
+5. StrictMode duplicate effects are deduplicated by source in the operation Map and must not notify twice.
 
-这样既消除 render side effect，也保证 streaming 不会先以临时身份写一次、settled 再写一次。
+This both eliminates the render side effect and ensures streaming does not first write with a temporary identity and then write again when settled.
 
-### 2.3 工具发布规则
+### 2.3 Tool publishing rules
 
-`render_ui` 已结束结果使用：
+A settled `render_ui` result uses:
 
 ```ts
 sourceId = JSON.stringify(['render_ui', block.callId])
@@ -304,96 +304,96 @@ order = [block.seq, -1, 0]
 mode = 'replace'
 ```
 
-工具和围栏进入同一个 operation 管道；删除另一套默认排序规则。
+Tools and fences go through the same operation pipeline; delete the other set of default ordering rules.
 
-### 2.4 折叠算法
+### 2.4 Fold algorithm
 
-每次首次收到新来源，执行一次事务式候选折叠：
+On each first receipt of a new source, perform one transactional candidate fold:
 
-1. 若来源早于或等于当前本地 clear/override barrier，拒绝旧重放。
-2. 若 `sourceId` 已在 operation Map 或正是 overflow barrier 的 source，直接返回，不通知、不重复诊断。
-3. 已存在 overflow barrier 时，排序不晚于 barrier 的新旧 append 仍可进入候选重算；更晚的 append 直接拒绝。任何 replace 都进入候选，由“最新 replace”规则判断是否有效；这样乱序到达但位于 barrier 前的 replace 也能正确重开后续 append。
-4. 不先修改正式 Map；把现有 overflow operation 与新 operation 一起加入临时副本，按三段 `order` 升序排序，从最新有效 replace 开始候选折叠，更早操作直接裁掉。
-5. `replace` 直接替换；`append` 复用现有纯函数 `mergePanelSpecs`。接受 append 的 spec 必须至少有一个有效节点。
-6. 每次 append merge 后复用现有 `validateGenuiSpec` 的全树节点计数；候选结果超过 200 节点时，把这一条记为首个 overflow barrier，跳过它以及排序更晚的 append，保留此前合法 snapshot。不得另写第二套节点遍历，也不得把 201 节点交给 React。
-7. 同一 latest replace 之后最多保留 200 条 append operation，直接复用 `GENUI_LIMITS.maxNodes` 这个 200，不新增另一项配置；第 201 条即使节点数仍未增长，也按同一 overflow barrier 规则要求下一次使用 replace。这是 operation Map 的明确内存上限。
-8. 候选 snapshot、裁剪后的 Map、overflow barrier 全部计算成功后才一次性提交；任何校验异常都保持旧正式状态。snapshot 真正变化时才通知一次。
-9. 更晚 replace 成功后，删除更早 operations 与旧 overflow barrier；session 销毁时清空 Map、barrier、snapshot 与订阅者。
+1. If the source is earlier than or equal to the current local clear/override barrier, reject the old replay.
+2. If the `sourceId` is already in the operation Map or is exactly the overflow barrier's source, return directly without notifying or repeating diagnostics.
+3. When an overflow barrier exists, new and old appends ordered no later than the barrier may still enter candidate recomputation; later appends are rejected outright. Any replace enters the candidate and the "latest replace" rule decides whether it is effective; this way a replace that arrives out of order but precedes the barrier correctly reopens subsequent appends.
+4. Do not modify the official Map first; add the existing overflow operation and the new operation to a temporary copy, sort ascending by the three-part `order`, start the candidate fold from the latest effective replace, and cut off earlier operations.
+5. `replace` replaces directly; `append` reuses the existing pure function `mergePanelSpecs`. A spec accepted for append must have at least one valid node.
+6. After each append merge, reuse the existing whole-tree node count from `validateGenuiSpec`; when the candidate result exceeds 200 nodes, record this entry as the first overflow barrier, skip it and all appends ordered later, and keep the previously valid snapshot. Do not write a second node traversal and do not hand 201 nodes to React.
+7. After the same latest replace, keep at most 200 append operations, directly reusing the 200 from `GENUI_LIMITS.maxNodes`, without adding another config item; even if the 201st does not grow the node count, the same overflow barrier rule requires the next one to use replace. This is the explicit memory bound of the operation Map.
+8. Commit in one go only after the candidate snapshot, the trimmed Map, and the overflow barrier are all computed successfully; any validation exception keeps the old official state. Notify once only when the snapshot actually changes.
+9. After a later replace succeeds, delete earlier operations and the old overflow barrier; on session destruction clear the Map, barrier, snapshot, and subscribers.
 
-因此每个 session 最多保留“最新 replace + 200 条 append + 1 个 overflow marker”。达到节点或操作上限后，系统提示、Skill 和诊断都要求模型发送 replace；不引入 LRU，也不按到达顺序猜测淘汰。
+So each session keeps at most "the latest replace + 200 appends + 1 overflow marker". Once the node or operation limit is reached, the system prompt, Skill, and diagnostics all require the model to send a replace; do not introduce an LRU and do not guess eviction by arrival order.
 
-### 2.5 `/panel` 本地命令
+### 2.5 The `/panel` local command
 
-删除通过 `publishPanelSpec(sessionId, null/default)` 伪装持久消息的方式，提供明确的本地接口：
+Delete the trick of disguising a durable message through `publishPanelSpec(sessionId, null/default)`, and provide explicit local interfaces:
 
-- `setLocalPanel(sessionId, DEFAULT_PANEL_SPEC)`：立即显示默认面板并展开，同时记录当前最大已见 message seq 作为 barrier。
-- `clearLocalPanel(sessionId)`：立即清空，同样记录当前最大已见 message seq 作为 barrier。
-- 下一条更晚的真实工具/围栏操作可以越过 barrier；旧历史重放不能复活面板。
-- 折叠时先把 local override 作为 base，再处理 barrier 之后的真实操作：新 replace 替换它，新 append 合入它；clear 的 base 为 `null`。
+- `setLocalPanel(sessionId, DEFAULT_PANEL_SPEC)`: immediately show and expand the default panel, and record the current maximum seen message seq as the barrier.
+- `clearLocalPanel(sessionId)`: immediately clear, also recording the current maximum seen message seq as the barrier.
+- The next later real tool/fence operation may cross the barrier; old history replay cannot resurrect the panel.
+- When folding, first take the local override as the base, then process real operations after the barrier: a new replace replaces it, a new append merges into it; the base for clear is `null`.
 
-不要伪造 `Infinity`、`MAX_SAFE_INTEGER` 消息或随机 source。
+Do not fake `Infinity`, `MAX_SAFE_INTEGER` messages, or random sources.
 
-### 2.6 inline 状态身份一并修正
+### 2.6 Fix inline state identity at the same time
 
-当前 inline durable key 也使用局部 fence key，两个消息若位置和内容都相同会串状态。改为：
+The current inline durable key also uses the local fence key, so two messages with the same position and content share state. Change to:
 
-- streaming：`stateKey` 为 `undefined`，不写 localStorage。
-- settled：使用宿主 `context.sessionId + source.id` 构建 `fenceStateKey`；不得读取全局 active session。
-- 顶层 `ErrorBoundary` 的 React key 使用 `source.id ?? reactKey`；这同时修复 React “顶层数组元素缺 key”警告，并在 streaming→settled 时原子重挂载。
-- 删除内部 `GenuiBlock` 上无效的重复 key。
+- streaming: `stateKey` is `undefined`, do not write localStorage.
+- settled: build `fenceStateKey` from the host `context.sessionId + source.id`; do not read the global active session.
+- The React key of the top-level `ErrorBoundary` uses `source.id ?? reactKey`; this also fixes the React "top-level array element missing key" warning and atomically remounts on streaming→settled.
+- Delete the invalid duplicate key on the inner `GenuiBlock`.
 
-### 2.7 面板内容状态重挂载
+### 2.7 Panel content state remount
 
-在面板组件中只计算一次：
+Compute this only once in the panel component:
 
 ```ts
 const stateKey = panelStateKey(sessionId, JSON.stringify(spec))
 ```
 
-把 `stateKey` 同时作为面板 `ErrorBoundary` 的 React key 和 `GenuiBlock.stateKey`。内容指纹变化时整棵交互树原子重建；不要用 `useEffect([stateKey])` 分步清空。
+Use `stateKey` as both the React key of the panel `ErrorBoundary` and `GenuiBlock.stateKey`. When the content fingerprint changes, the whole interactive tree is rebuilt atomically; do not clear step by step with `useEffect([stateKey])`.
 
-### 2.8 涉及文件
+### 2.8 Files involved
 
-插件仓：
+Plugin repo:
 
-- 围栏入口：`src/client/index.tsx`
-- 面板仓库：`src/client/panel-store.ts`
-- 工具卡入口：`src/client/toolview.tsx`
-- 本地面板命令：`src/client/panel-command.ts`
-- 面板组件：`src/client/panel.tsx`
-- 交互 key：`src/client/interaction-store.ts`
-- 面板、append、持久化和 fence 测试。
+- Fence entry: `src/client/index.tsx`
+- Panel store: `src/client/panel-store.ts`
+- Tool card entry: `src/client/toolview.tsx`
+- Local panel command: `src/client/panel-command.ts`
+- Panel component: `src/client/panel.tsx`
+- Interaction key: `src/client/interaction-store.ts`
+- Panel, append, persistence, and fence tests.
 
-### 2.9 必须新增/替换的测试
+### 2.9 Tests that must be added/replaced
 
-| 用例 | 断言 |
+| Case | Assertion |
 |---|---|
-| 两条消息的局部 key 都为 0 | 两次 append 都保留 |
-| 两个会话交错重放相同 source/order | 各自只更新自己的 session 面板与 durable state |
-| 两条消息内容完全相同 | 仍各追加一次 |
-| 同一 source 重复 3 次 | 只追加、通知一次 |
-| A→B→A 到达 | A、B 各一次 |
-| B 先到、A 后到 | 最终仍按 A→B 折叠 |
-| replace 20 后重放 append 10 | 旧 append 不影响结果 |
-| fence 20 后 tool 30 | tool 胜 |
-| tool 30 后重放 fence 20 | tool 仍胜 |
-| 同消息两个围栏 | 由 text/fence order 决定，不由 effect 顺序决定 |
-| clear 后旧 A 重放 | 面板不复活 |
-| 设置默认面板后旧 A 重放 | 只保留默认面板，旧 A 不重新合入 |
-| clear 后新 C | C 正常建立面板 |
-| append 后总节点将达 201 | 本次 append 被拒，DOM ≤200 |
-| 同一超限 source 重放 3 次 | Map/snapshot 不变，只产生一次诊断 |
-| 超限后到达更晚 append | 被 overflow barrier 幂等拒绝，不增加 Map |
-| 超限后到达更晚 replace | replace 生效并清理旧 barrier，随后 append 可恢复 |
-| 200 次同标签 tab 更新后第 201 次 append | 即使节点数没增长也拒绝，Map 保持固定上限 |
-| StrictMode publisher | snapshot 与通知均只发生一次 |
-| 相同 inline spec 位于两条消息 | 两块 durable state 相互独立 |
-| 面板 A 已作答后原地换 B | B 无旧答案、字段、locked，且 A 不写进 B 的 key |
-| 文本 + 两个有效围栏 | 无 React unique key 警告，两个都渲染 |
+| Both messages' local key is 0 | Both appends are kept |
+| Two sessions interleave replaying the same source/order | Each only updates its own session's panel and durable state |
+| Two messages with exactly the same content | Still each appends once |
+| The same source repeated 3 times | Append and notify only once |
+| A→B→A arrival | A and B once each |
+| B arrives first, A later | Still finally folded as A→B |
+| Replay append 10 after replace 20 | The old append does not affect the result |
+| fence 20 then tool 30 | tool wins |
+| Replay fence 20 after tool 30 | tool still wins |
+| Two fences in the same message | Determined by text/fence order, not by effect order |
+| Replay old A after clear | The panel is not resurrected |
+| Replay old A after setting the default panel | Only the default panel is kept; old A is not re-merged |
+| New C after clear | C builds the panel normally |
+| Total nodes would reach 201 after append | This append is rejected, DOM ≤200 |
+| The same over-limit source replayed 3 times | Map/snapshot unchanged, only one diagnostic produced |
+| A later append arrives after the limit | Idempotently rejected by the overflow barrier, Map not grown |
+| A later replace arrives after the limit | replace takes effect and clears the old barrier, after which appends can resume |
+| The 201st append after 200 same-label tab updates | Rejected even though the node count did not grow; the Map keeps a fixed upper bound |
+| StrictMode publisher | snapshot and notification each happen only once |
+| The same inline spec in two messages | The two durable states are independent of each other |
+| Replace panel A with B in place after A was answered | B has no old answers, fields, or locked, and A is not written into B's key |
+| Text + two valid fences | No React unique key warning; both render |
 
-删除现有“fence = Infinity 永远胜”的测试，替换为真实顺序测试；不得保留错误预期。
+Delete the existing "fence = Infinity always wins" test and replace it with true ordering tests; do not keep incorrect expectations.
 
-### 2.10 阶段验收
+### 2.10 Stage acceptance
 
 ```sh
 corepack pnpm exec vitest run tests/genui-panel.spec.tsx tests/panel-append.spec.tsx tests/genui-v27.spec.tsx tests/genui-error-boundary.spec.tsx
@@ -401,92 +401,92 @@ corepack pnpm exec vitest run
 corepack pnpm exec tsc -b --pretty false
 ```
 
-真实隔离会话再验：连续两轮各输出一个 `panel:true, append:true` 围栏，且两个围栏在各自消息里都是第一个 Markdown 块；面板必须同时保留两轮内容。
+Verify again in a real isolated session: two consecutive rounds each output a `panel:true, append:true` fence, and both fences are the first Markdown block in their respective messages; the panel must keep the content of both rounds.
 
-### 2.11 禁止方案
+### 2.11 Forbidden approaches
 
-- 不把 `lastAppendSource` 简单换成有限 LRU 或 Set 后继续按到达顺序 merge。
-- 不用 raw hash 去重。
-- 不用 `Infinity`、`MAX_SAFE_INTEGER` 或时间戳换一种方式继续“最后调用者赢”。
-- 不在 renderer 纯函数里直接写外部 store。
-- 不为了无限 append 引入虚拟列表；本轮直接执行整个面板 200 节点上限。
+- Do not simply swap `lastAppendSource` for a bounded LRU or Set and keep merging by arrival order.
+- Do not deduplicate with a raw hash.
+- Do not keep "last caller wins" in another form using `Infinity`, `MAX_SAFE_INTEGER`, or timestamps.
+- Do not write to an external store directly inside the renderer pure function.
+- Do not introduce a virtual list for unbounded appends; this round enforces the whole-panel 200 node cap directly.
 
 ---
 
-## 阶段 3：表单、状态、IME 与敏感信息边界
+## Stage 3: Forms, State, IME, and Sensitive Information Boundaries
 
-这一阶段集中修改 `GenuiBlock.tsx`，避免多条分支反复冲突。
+This stage concentrates on modifying `GenuiBlock.tsx` to avoid repeated conflicts across many branches.
 
-### 3.1 tabs 透传块级答案状态
+### 3.1 tabs pass through block-level answer state
 
-在 `renderNode` 的 tabs 分支补 `answers={answers}`。不在 `TabsNode` 里新建仓库或 Context。
+In the tabs branch of `renderNode`, add `answers={answers}`. Do not create a new store or Context inside `TabsNode`.
 
-测试必须包含：
+Tests must include:
 
-- tab 内 grouped radio + input(id) + submit。
-- tab 内本地判卷、锁定、重新作答。
-- 切换 tab 再返回，块级答案仍在。
-- payload 同时包含正确的 `answers` 和 `fields`。
+- grouped radio + input(id) + submit inside a tab.
+- Local grading, locking, and re-answering inside a tab.
+- Switching tabs and returning keeps the block-level answers.
+- The payload contains both the correct `answers` and `fields`.
 
-### 3.2 简化答案状态
+### 3.2 Simplify answer state
 
-删除未被读取的 `AnswerEntry.label`：
+Delete the unread `AnswerEntry.label`:
 
-- 内存答案改为 `Record<string, string>`。
-- `setAnswer(group, choice)` 只比较字符串。
-- 题目显示继续唯一读取 `QuestionMeta.label`。
-- localStorage 结构本来就是字符串表，不做迁移、不加兼容层。
-- submit payload 不再做 `{label, choice}` 到字符串的二次转换。
-- 在 Radio 的 React key 中加入已有 `round`，删除监听 round 再 `setSelected` 的同步 effect。
+- In-memory answers become `Record<string, string>`.
+- `setAnswer(group, choice)` compares strings only.
+- Question display keeps reading `QuestionMeta.label` uniquely.
+- The localStorage structure is already a string table, so no migration and no compatibility layer.
+- The submit payload no longer does a second conversion from `{label, choice}` to a string.
+- Add the existing `round` to the Radio React key and delete the sync effect that watches round and then `setSelected`.
 
-验收：v2.5/v2.6/v2.7 的答题、判分、错误答案、重试、刷新恢复和 action payload 行为不变，代码净减少。
+Acceptance: v2.5/v2.6/v2.7 answering, grading, wrong answers, retry, refresh restore, and action payload behavior are unchanged, with a net reduction in code.
 
-### 3.3 建立字段不变量
+### 3.3 Establish field invariants
 
-- `value.trim() === ''` 时从共享 `fields` 删除该 id。
-- 非空时保存用户原字符串，不擅自 trim payload。
-- Input/Textarea 初次挂载时，把非空 `node.value` 注册到共享 fields。
-- Submit 计算 `answered`、ready 和 payload 时统一使用同一个 `filledFields`；防御性过滤空白值。
-- 不把“任一字段非空即可提交”擅自改成“所有字段必填”。
+- When `value.trim() === ''`, delete that id from the shared `fields`.
+- When non-empty, keep the user's original string; do not trim the payload on your own.
+- On first mount, Input/Textarea register a non-empty `node.value` into the shared fields.
+- Submit uses the same `filledFields` when computing `answered`, ready, and the payload; defensively filter blank values.
+- Do not unilaterally change "any non-empty field makes it submittable" into "all fields are required".
 
-测试：输入后清空重新禁用、纯空格禁用、一空一非空只发送一个、默认值初始可提交、非空值原始空格保留。
+Tests: clear after typing re-disables, whitespace-only disables, one empty and one non-empty sends only one, default values are initially submittable, original whitespace in non-empty values is preserved.
 
-### 3.4 复用 DSH 已验证的完整 IME 保护
+### 3.4 Reuse DSH's already-verified complete IME protection
 
-Input 的 Enter 和 Textarea 的 Ctrl/Cmd+Enter 都要使用 DSH 主输入框的三层判定：
+Both Input Enter and Textarea Ctrl/Cmd+Enter must use the DSH main input box's three-layer check:
 
-1. `compositionstart` 置 composing ref。
-2. `compositionend` 延迟 10ms 清 ref，覆盖 Safari closing keydown 顺序。
-3. keydown 同时检查 ref、`nativeEvent.isComposing`、`nativeEvent.keyCode === 229`。
+1. `compositionstart` sets the composing ref.
+2. `compositionend` clears the ref after a 10ms delay, covering the Safari closing keydown order.
+3. keydown checks the ref, `nativeEvent.isComposing`, and `nativeEvent.keyCode === 229` at the same time.
 
-测试：
+Tests:
 
-- `isComposing:true` 不提交。
-- `keyCode:229` 不提交。
-- compositionStart→compositionEnd→紧接 Enter 不提交。
-- 延迟结束后的普通 Enter 只提交一次。
-- Textarea 的 Ctrl+Enter、Cmd+Enter覆盖同样路径。
+- `isComposing:true` does not submit.
+- `keyCode:229` does not submit.
+- compositionStart→compositionEnd→immediately followed by Enter does not submit.
+- A normal Enter after the delay does submit, only once.
+- Textarea Ctrl+Enter and Cmd+Enter cover the same path.
 
-真实验收必须在隔离 DSH 页面用中文拼音完成“输入候选→Enter 选词→再次 Enter 提交”；第一次 Enter 不产生模型消息。
+Real acceptance must complete "type candidates → Enter to pick → Enter again to submit" using Chinese pinyin on an isolated DSH page; the first Enter produces no model message.
 
-### 3.5 删除 password 能力
+### 3.5 Delete the password capability
 
-这是安全边界，不保留兼容：
+This is a security boundary; no compatibility is kept:
 
-- `GenuiInput.inputType` 只保留 `text | email`。
-- guard 遇到已知 input 节点且 `inputType === 'password'` 时丢弃整个节点；不得静默去掉属性后渲染成可见文本框。
-- validator 给出可诊断错误。
-- 系统提示、`SKILL.md`、README 和示例删除 password。
-- 增加明确规则：GenUI 不得索取密码、API Key、访问令牌、恢复码或其他秘密。
-- 测试恶意 password spec 不产生 input DOM，也不向 localStorage 写入值。
+- `GenuiInput.inputType` keeps only `text | email`.
+- When the guard encounters a known input node with `inputType === 'password'`, drop the whole node; do not silently remove the attribute and render it as a visible text box.
+- The validator gives a diagnosable error.
+- The system prompt, `SKILL.md`, README, and examples drop password.
+- Add an explicit rule: GenUI must not request passwords, API Keys, access tokens, recovery codes, or other secrets.
+- Test that a malicious password spec produces no input DOM and writes no value to localStorage.
 
-### 3.6 诚实点击反馈
+### 3.6 Honest click feedback
 
-把按钮本地 chip 从“已响应”改为“已触发”或“已点击”。前者只证明本地事件被触发，不能暗示模型已收到或已经响应。
+Change the button's local chip from "responded" to "triggered" or "clicked". The former only proves the local event fired and cannot imply the model received or responded.
 
-本轮不扩展整个 `GenuiActionHandler` 为 Promise；当宿主提供统一发送失败反馈通道后再做异步成功/失败状态。现有 catch 至少记录不含 action payload/秘密值的错误和 session 定位信息，不得无声吞掉。
+This round does not extend the whole `GenuiActionHandler` to a Promise; async success/failure state comes after the host provides a unified send-failure feedback channel. The existing catch must at least log errors that do not contain action payload/secret values plus session location information, and must not swallow them silently.
 
-### 3.7 阶段测试与验收
+### 3.7 Stage tests and acceptance
 
 ```sh
 corepack pnpm exec vitest run tests/genui-v25.spec.tsx tests/genui-v26.spec.tsx tests/genui-v27.spec.tsx tests/genui-hardening.spec.tsx
@@ -494,81 +494,81 @@ corepack pnpm exec vitest run
 corepack pnpm exec tsc -b --pretty false
 ```
 
-完成标准：tabs、根层、accordion 三处表单语义一致；IME 不误发；空字段不算完成；password 无渲染、无持久化、无教学文案。
+Completion criteria: forms in tabs, root level, and accordion have identical semantics; IME does not mis-send; empty fields do not count as complete; password has no rendering, no persistence, and no instructional text.
 
 ---
 
-## 阶段 4：解析、3D 和指针性能
+## Stage 4: Parsing, 3D, and Pointer Performance
 
-### 4.1 把 partial 解析从无界尝试改为有界线性工作
+### 4.1 Turn partial parsing from unbounded attempts into bounded linear work
 
-保留现有完整 JSON 快速路径，不引入解析器依赖；把当前“每遇到一个 `}` 就重新扫描前缀”改成真正的一次前向扫描。
+Keep the existing complete-JSON fast path and do not introduce a parser dependency; change the current "rescan the prefix on every `}`" into a genuinely single forward scan.
 
-实施：
+Implementation:
 
-1. 复用 `GENUI_LIMITS.maxDepth`，定义一个总修复候选/尝试上限 `MAX_PARTIAL_REPAIR_ATTEMPTS = 32`，不再增加第二套深度数字。
-2. 完整 `JSON.parse` 最多一次。
-3. 用一个小型纯候选收集器从左到右只读原文一次：继续正确跳过字符串/转义，维护括号栈；在有效对象闭合且栈深不超过现有 8 层限制时，直接记录 `{ end, closingSuffix }`，固定环形缓冲区只保留最长方向需要的 32 个候选。
-4. balanced prefix 与 unfinished candidate 在这次扫描中合并、去重；扫描结束后从最长候选开始 `JSON.parse`。禁止在 `}` 循环里调用 `scanBrackets(text.slice(...))`，也禁止对任一 prefix 做第二次括号扫描。
-5. 达到 32 次后返回 `null`，等待更多流式内容或 settled fallback。
-6. 加 `ponytail:` 注释说明：单次扫描 + 32 次 parse 是当前深度 8、节点 200 下的保护上限；只有真实流式样本证明恢复率不足时才改成 tokenizing parser。
-7. 不另加低于现有合法 spec 能力的随意 raw 字节上限。
+1. Reuse `GENUI_LIMITS.maxDepth` and define a total repair candidate/attempt cap `MAX_PARTIAL_REPAIR_ATTEMPTS = 32`, without adding a second set of depth numbers.
+2. Do a full `JSON.parse` at most once.
+3. Use a small pure candidate collector to read the original text once from left to right: keep correctly skipping strings/escapes and maintain a bracket stack; when a valid object closes and the stack depth is within the existing 8-level limit, directly record `{ end, closingSuffix }`, with a fixed ring buffer keeping only the 32 candidates needed in the longest direction.
+4. balanced prefixes and unfinished candidates are merged and deduplicated in this scan; after the scan, `JSON.parse` starting from the longest candidate. Calling `scanBrackets(text.slice(...))` inside the `}` loop is forbidden, as is a second bracket scan of any prefix.
+5. After 32 attempts, return `null` and wait for more streaming content or the settled fallback.
+6. Add a `ponytail:` comment explaining: a single scan + 32 parses is the protective cap at the current depth 8 and 200 nodes; only switch to a tokenizing parser when real streaming samples prove the recovery rate is insufficient.
+7. Do not add an arbitrary raw byte cap below the existing valid spec capability.
 
-测试：
+Tests:
 
-- 保留全部现有 partial 前缀恢复用例。
-- 构造审计中的约 24 KB、8000 个闭合对象病态输入。
-- 候选收集器在测试中返回/暴露 `scannedChars` 诊断值（不从包入口导出），断言等于输入长度且候选数 ≤32；源码中 parser 只能调用该收集器一次。
-- spy `JSON.parse`，断言总调用不超过 33（完整一次 + 修复 32）。
-- 记录同一机器 20 次 benchmark 的 P95；目标 <50ms，但时间值只做本地证据，不作为易抖动 CI 断言。
+- Keep all existing partial prefix recovery cases.
+- Construct the audit's pathological input of about 24 KB with 8000 closed objects.
+- In tests the candidate collector returns/exposes a `scannedChars` diagnostic value (not exported from the package entry), asserting it equals the input length and the candidate count ≤32; in the source the parser may call the collector only once.
+- spy `JSON.parse` and assert total calls do not exceed 33 (one full + 32 repairs).
+- Record the P95 of 20 benchmarks on the same machine; the target is <50ms, but the timing value serves only as local evidence and is not used as a flaky CI assertion.
 
-### 4.2 先过 scene3d 删除决策门
+### 4.2 Pass the scene3d deletion decision gate first
 
-先做产品决策，再写 3D 优化，避免重构完马上删除。
+Make the product decision first, then write 3D optimization, so a refactor is not immediately followed by deletion.
 
-本轮默认不删。原因：它是已公开、已演示的产品能力；只有同时满足下面两项才改为删除路线：
+This round does not delete by default. Reason: it is a publicly shipped, demonstrated product capability; switch to the deletion path only when both of the following hold:
 
-1. 从真实会话证明发布以来 `scene3d` 使用为 0，统计必须排除 gallery/demo/test。
-2. 产品明确确认删除。
+1. Real sessions prove `scene3d` usage is 0 since release, and the statistics must exclude gallery/demo/test.
+2. The product explicitly confirms deletion.
 
-若确认删除，则在独立提交中删除以下内容，并跳过 4.3 与 4.4 中所有 scene3d 专属改动：
+If deletion is confirmed, delete the following in an independent commit and skip all scene3d-specific changes in 4.3 and 4.4:
 
-- 3D renderer、组件分支、spec、guard、CSS、gallery、默认面板统计、系统提示、Skill、README、demo 和测试。
-- `three`、`@types/three` 及锁文件。
-- 不保留旧 spec 兼容层。
+- 3D renderer, component branch, spec, guard, CSS, gallery, default panel statistics, system prompt, Skill, README, demo, and tests.
+- `three`, `@types/three`, and the lockfile.
+- Do not keep an old-spec compatibility layer.
 
-删除验收：`rg scene3d` 只允许历史 changelog；client.js 预计至少减少约 1.8 MB。没有证据或确认时，记录“保留”，再进入 4.3。
+Deletion acceptance: `rg scene3d` is allowed only in the historical changelog; client.js is expected to shrink by at least about 1.8 MB. Without evidence or confirmation, record "keep" and proceed to 4.3.
 
-### 4.3 保留时把静态 3D 改为事件驱动渲染
+### 4.3 When keeping it, change static 3D to event-driven rendering
 
-- 删除永久 `requestAnimationFrame` 循环和 `cancelAnimationFrame`。
-- 场景初始化完成后 render 一次。
-- orbit 更新相机后立即 render 一次。
-- pointer move（正在拖拽）与 wheel 触发 orbit/render。
-- 静止时 0 个持续动画帧。
-- 保留 mesh、geometry、material、renderer 的正确 dispose。
+- Delete the permanent `requestAnimationFrame` loop and `cancelAnimationFrame`.
+- Render once after scene initialization completes.
+- Render once immediately after orbit updates the camera.
+- pointer move (while dragging) and wheel trigger orbit/render.
+- 0 continuous animation frames while idle.
+- Keep correct dispose of mesh, geometry, material, and renderer.
 
-测试/验收：
+Tests/acceptance:
 
-- 模拟初始化后 renderer 只 render 一次。
-- 静置一秒不增加 render 次数。
-- 一次 drag move 和一次 wheel 各增加一次 render。
-- 真实 headless Chrome 中拖拽、缩放仍有效；Performance 录制静止场景无持续 RAF。
+- After simulated initialization, the renderer renders only once.
+- Idling for one second does not increase the render count.
+- One drag move and one wheel each add one render.
+- Dragging and zooming still work in real headless Chrome; a Performance recording of a static scene shows no continuous RAF.
 
-### 4.4 使用 Pointer Capture 删除全局监听
+### 4.4 Use Pointer Capture to delete global listeners
 
-面板拖拽复用仓库内函数图的原生模式：
+Panel dragging reuses the native pattern of the in-repo function graph:
 
-- pointerdown 在 handle 上 `setPointerCapture(pointerId)`。
-- move/up/cancel 都绑定 handle。
-- 删除 window pointermove/pointerup 注册、注销和清理 effect。
-- 保留 120–600px 夹取、折叠后的高度记忆和可访问性 separator。
+- pointerdown on the handle calls `setPointerCapture(pointerId)`.
+- move/up/cancel are all bound to the handle.
+- Delete the window pointermove/pointerup registration, deregistration, and cleanup effect.
+- Keep the 120–600px clamping, collapsed height memory, and accessible separator.
 
-仅在 4.2 选择保留 scene3d 时，把 3D canvas 的拖拽移到 canvas pointer capture，删除 scene3d 的 window pointer 监听；若选择删除，不写这段即删代码。
+Only when 4.2 chooses to keep scene3d, move the 3D canvas dragging to canvas pointer capture and delete scene3d's window pointer listener; if deletion is chosen, do not write this code that would be immediately deleted.
 
-测试：面板拖出元素边界仍连续、pointercancel 清 active、松手后不再改变、卸载无残留；保留 3D 时对 canvas 跑同样用例。对应源码不再出现 window pointer listener。
+Tests: dragging the panel beyond the element bounds stays continuous, pointercancel clears active, releasing no longer changes anything, unmount leaves no residue; run the same cases on the canvas when 3D is kept. The corresponding source must no longer contain a window pointer listener.
 
-### 4.5 阶段门禁
+### 4.5 Stage gate
 
 ```sh
 corepack pnpm exec vitest run tests/genui-partial.spec.tsx tests/genui-panel.spec.tsx tests/genui-v12.spec.tsx
@@ -578,38 +578,38 @@ corepack pnpm exec tsc -b --pretty false
 
 ---
 
-## 阶段 5：确定构建、缩小安装包、加固安装器
+## Stage 5: Deterministic Build, Smaller Install Package, Hardened Installer
 
-### 5.1 先单独固定 CSS 导出顺序
+### 5.1 First pin the CSS export order on its own
 
-在 CSS Modules 的 classMap 构造前按本地类名做固定 UTF-16 排序：
+Before constructing the CSS Modules classMap, sort by local class name with a fixed UTF-16 sort:
 
-- 不用 `localeCompare`，避免系统 locale 差异。
-- 不改变 hash 类名和值，只固定对象键顺序。
-- 不新增测试专用生产导出。
+- Do not use `localeCompare`, avoiding system locale differences.
+- Do not change hash class names or values; only pin the object key order.
+- Do not add test-only production exports.
 
-验收：同一干净 worktree 连续构建 5 次，`shasum -a 256 lib/client.js` 完全一致；macOS 提交的产物在 Ubuntu CI 重建无 diff。
+Acceptance: 5 consecutive builds in the same clean worktree give completely identical `shasum -a 256 lib/client.js`; artifacts committed on macOS rebuild with no diff on Ubuntu CI.
 
-### 5.2 tsdown 直接从 src 构建，tsc 只产声明
+### 5.2 Build tsdown directly from src and have tsc emit declarations only
 
-这一组必须原子提交：
+This group must be one atomic commit:
 
-1. `tsconfig.json` 增加 `emitDeclarationOnly: true`。
-2. 关闭 `declarationMap`，删除无意义 `sourceMap`。
-3. 单包没有 project reference：脚本改用 `tsc -p tsconfig.json`，删除 `composite`、`incremental`，不再生成 `tsconfig.tsbuildinfo`。
-4. tsdown client entry 改为 `src/client/index.tsx`。
-5. Node entries 改为 `src/plugin/index.ts`、`src/plugin/invariant.ts`。
-6. CSS 直接按源码 importer 解析，删除 `sourceAssetPath`、`existsSync`、`sep` 和 `lib/types` 回溯逻辑。
-7. 生产浏览器包关闭 sourcemap，删除 sourceMappingURL 和 sourcemap 路径转换代码。
-8. 按当前 tsdown 类型与警告，把：
-   - `external` 改为 `deps.neverBundle`
-   - `noExternal` 改为 `deps.alwaysBundle`
-   - `inlineDynamicImports` 改为 `codeSplitting: false`
-9. 删除 `lib/types` 下 20 个中间 JS、20 个 JS map、20 个 d.ts map；保留 d.ts 与顶层三个运行 JS。
+1. `tsconfig.json` adds `emitDeclarationOnly: true`.
+2. Turn off `declarationMap` and delete the meaningless `sourceMap`.
+3. A single package has no project reference: change the script to `tsc -p tsconfig.json`, delete `composite` and `incremental`, and stop generating `tsconfig.tsbuildinfo`.
+4. Change the tsdown client entry to `src/client/index.tsx`.
+5. Change the Node entries to `src/plugin/index.ts` and `src/plugin/invariant.ts`.
+6. Resolve CSS directly through the source importer, deleting `sourceAssetPath`, `existsSync`, `sep`, and the `lib/types` backtracking logic.
+7. Turn off sourcemaps for the production browser bundle and delete sourceMappingURL and the sourcemap path conversion code.
+8. Based on the current tsdown types and warnings, change:
+   - `external` to `deps.neverBundle`
+   - `noExternal` to `deps.alwaysBundle`
+   - `inlineDynamicImports` to `codeSplitting: false`
+9. Delete the 20 intermediate JS, 20 JS maps, and 20 d.ts maps under `lib/types`; keep the d.ts files and the three top-level runtime JS files.
 
-预期净收益：约 -60 文件、-3827 行生成代码，0 新依赖。
+Expected net gain: about -60 files, -3827 lines of generated code, 0 new dependencies.
 
-验收：
+Acceptance:
 
 ```sh
 corepack pnpm run check
@@ -619,30 +619,30 @@ node --check lib/invariant.js
 test -z "$(find lib/types -type f \( -name '*.js' -o -name '*.map' \) -print -quit)"
 ```
 
-最后一项是失败式断言；失败时再打印完整 `find` 结果帮助定位，不能因为 `find` 自身返回 0 而假绿。tsdown 运行不得再出现上述三条废弃配置警告。
+The last item is a failing assertion; on failure, print the full `find` result to help locate the cause, and do not falsely go green because `find` itself returned 0. A tsdown run must no longer show the three deprecated config warnings above.
 
-### 5.3 依赖按真实运行边界归类
+### 5.3 Classify dependencies by the real runtime boundary
 
-| 依赖 | 最终位置 | 原因 |
+| Dependency | Final location | Reason |
 |---|---|---|
-| `mermaid` | devDependency | 已内联进 client.js，仅构建需要 |
-| `three` | devDependency | 本轮若保留 3D则已内联，仅构建需要 |
-| `react` | peer + dev | 运行由 DSH 模块表提供，构建/测试本地需要 |
-| `react-dom` | dev only | 源码零 import，只是测试工具需要；删除 peer |
-| DSH 内部包、Cordis | peer | 运行由宿主提供 |
+| `mermaid` | devDependency | Already inlined into client.js; only the build needs it |
+| `three` | devDependency | Inlined if 3D is kept this round; only the build needs it |
+| `react` | peer + dev | Runtime provided by the DSH module table; local build/test needs it |
+| `react-dom` | dev only | Zero imports in source, only test tooling needs it; delete peer |
+| DSH internal packages, Cordis | peer | Runtime provided by the host |
 
-同时：
+Also:
 
-- 删除 EXTERNALS 中没有实际 import 的 `react-dom`、`react-dom/client`。
-- 更新锁文件。
-- 修正文档中“git/link 安装需要下载 Mermaid/Three/React”的过期说法。
-- 验证生产 bundle 不含 `require('mermaid')`、`require('three')`、`require('react-dom')`。
+- Delete `react-dom` and `react-dom/client` from EXTERNALS, which have no actual import.
+- Update the lockfile.
+- Correct the outdated statement in the docs that "git/link installation requires downloading Mermaid/Three/React".
+- Verify the production bundle does not contain `require('mermaid')`, `require('three')`, or `require('react-dom')`.
 
-这一步减少用户安装依赖，不会让 9.02 MB 浏览器包自动变小；不得虚报 bundle 收益。
+This step reduces the dependencies a user installs; it does not automatically shrink the 9.02 MB browser bundle, and bundle gains must not be overstated.
 
-### 5.4 固定工具链
+### 5.4 Pin the toolchain
 
-在包清单增加：
+Add to the package manifest:
 
 ```json
 {
@@ -654,13 +654,13 @@ test -z "$(find lib/types -type f \( -name '*.js' -o -name '*.map' \) -print -qu
 }
 ```
 
-与 DSH 主仓和 CI 对齐。不要让安装脚本自动修改用户全局工具链；pnpm 不满足时给出命令并失败。
+Align with the DSH main repo and CI. Do not let the install script modify the user's global toolchain automatically; when pnpm does not satisfy the requirement, print a command and fail.
 
-### 5.5 收紧发布包表面
+### 5.5 Tighten the published package surface
 
-- 删除 `exports['./src/*']`。
-- 保留 `exports['./package.json']`；现有安装器和 DSH 客户端模块发现都要解析包清单，不能把“删除源码出口”扩大成删除包清单出口。
-- `files` 删除 `src`，改成明确白名单：
+- Delete `exports['./src/*']`.
+- Keep `exports['./package.json']`; the existing installer and DSH client module discovery both need to resolve the package manifest, so "delete the source export" must not be broadened into deleting the package manifest export.
+- `files` deletes `src` and becomes an explicit allowlist:
   - `lib/index.js`
   - `lib/invariant.js`
   - `lib/client.js`
@@ -672,42 +672,42 @@ test -z "$(find lib/types -type f \( -name '*.js' -o -name '*.map' \) -print -qu
   - `CHANGELOG.md`
   - `demo-prompts.md`
   - `cordis.patch.yml`
-- `package.json` 与 `LICENSE` 由 npm 强制包含，不需要写进 `files`，但必须列入 pack 校验的允许清单。
-- 不删除仓库源码，只是不发布源码逃生口。
-- 当前组织代码搜索没有 `@omdsh-dev/dsh-genui/src/*` 消费者；不增加兼容导出。
+- `package.json` and `LICENSE` are force-included by npm and do not need to be written into `files`, but must be on the pack verification allowlist.
+- Do not delete the repo source; just do not publish a source escape hatch.
+- The current org code search has no consumer of `@omdsh-dev/dsh-genui/src/*`; do not add a compatibility export.
 
-新增一个小型 `scripts/verify-pack.mjs`，读取 `npm pack --dry-run --json` 并断言：
+Add a small `scripts/verify-pack.mjs` that reads `npm pack --dry-run --json` and asserts:
 
-- 三个运行 exports 的 JS 与类型入口存在，`./package.json` export 仍可解析。
-- 没有 `src/`、`.map`、`.tsbuildinfo`、`lib/types/**/*.js`。
-- 压缩包 <3 MB，解包 <10 MB。
-- 发现未知文件或超限时列出实际条目，不静默放宽阈值。
+- The JS and type entries for the three runtime exports exist and the `./package.json` export still resolves.
+- There is no `src/`, `.map`, `.tsbuildinfo`, or `lib/types/**/*.js`.
+- Packed <3 MB, unpacked <10 MB.
+- List the actual entries when an unknown file or an over-limit value is found; do not silently relax the thresholds.
 
-### 5.6 修复安装脚本的文件安全边界
+### 5.6 Fix the install script's file safety boundary
 
-安装器先验证 profile 参数只含允许字符，Node 解析路径使用环境变量，不把用户路径插进 `node -e` 字符串。
+The installer first verifies that the profile argument contains only allowed characters, and Node resolves paths using environment variables rather than interpolating user paths into a `node -e` string.
 
-同步 Skill 时明确分类：
+When syncing the Skill, explicitly classify:
 
-| 目标状态 | 行为 |
+| Target state | Behavior |
 |---|---|
-| 不存在 | 同目录临时文件 + 原子 mv 创建 |
-| 普通文件 | 同目录临时文件 + 原子 mv 替换 |
-| 相对/绝对 symlink，解析后与来源同一文件 | 成功跳过，不改链接 |
-| symlink 指向其他文件 | 安全失败，显示目标，不跟随写入 |
-| 悬空 symlink | 安全失败 |
-| 目录 | 安全失败 |
+| Does not exist | Same-directory temp file + atomic mv create |
+| Regular file | Same-directory temp file + atomic mv replace |
+| Relative/absolute symlink resolving to the same file as the source | Skip successfully, do not change the link |
+| symlink pointing to another file | Fail safely, show the target, do not follow and write |
+| Dangling symlink | Fail safely |
+| Directory | Fail safely |
 
-其他要求：
+Other requirements:
 
-- 不再直接 `cp "$SKILL_FILE" "$DEST"`。
-- 临时文件异常退出要清理。
-- 冲突和包内 Skill 缺失必须非零退出，不能谎称完整安装成功。
-- pnpm 缺失时不自动执行 `corepack enable`；只给明确操作提示。
+- No longer `cp "$SKILL_FILE" "$DEST"` directly.
+- Clean up the temp file on abnormal exit.
+- Conflicts and a missing in-package Skill must exit non-zero and must not falsely claim a complete installation succeeded.
+- When pnpm is missing, do not run `corepack enable` automatically; only give clear instructions.
 
-新增 `tests/install-script.spec.ts`，用临时 `DSH_HOME`、假 `dsh/pnpm/git` 和真实 shell 驱动上述七类场景。最关键用例必须证明不同目标 symlink 指向的哨兵内容字节不变。
+Add `tests/install-script.spec.ts`, driving the seven scenarios above with a temporary `DSH_HOME`, fake `dsh/pnpm/git`, and a real shell. The most critical case must prove the sentinel content bytes a different-target symlink points to stay unchanged.
 
-### 5.7 阶段门禁
+### 5.7 Stage gate
 
 ```sh
 test "$(corepack pnpm --version)" = "11.7.0"
@@ -718,246 +718,246 @@ git diff --exit-code -- lib/
 test -z "$(git status --porcelain=v1 --untracked-files=all -- lib)"
 ```
 
-- 后续一律继续使用 `corepack pnpm`，不得又落回 PATH 上的裸 pnpm。
-- 最后一条把未跟踪生成物也纳入失败条件；若失败，打印完整 status 后停止。
-- 生成真实 tarball，在临时 consumer 中用 `npm install --ignore-scripts --omit=dev --legacy-peer-deps <tarball>` 只验证文件表、四个 exports 路径和“没有 Mermaid/Three 运行依赖副本”；这一阶段不声称浏览器渲染通过。
-- 普通围栏、Mermaid、保留时的 scene3d 与真实 profile 加载统一移到阶段 6，使用修好日志/防假通过后的 E2E 验证。
+- From here on always keep using `corepack pnpm`; do not fall back to the bare pnpm on PATH.
+- The last item brings untracked generated artifacts into the failure condition as well; on failure, print the full status and stop.
+- Produce a real tarball and, in a temporary consumer, use `npm install --ignore-scripts --omit=dev --legacy-peer-deps <tarball>` to verify only the file table, the four export paths, and "no Mermaid/Three runtime dependency copy"; this stage does not claim browser rendering passes.
+- Ordinary fences, Mermaid, scene3d when kept, and real profile loading all move together to stage 6, verified with E2E after the logging/false-pass fixes.
 
 ---
 
-## 阶段 6：让 E2E、CI、文档和发布只报告真实状态
+## Stage 6: Make E2E, CI, Documentation, and Release Report Only the True State
 
-### 6.1 E2E 启动前预检
+### 6.1 E2E preflight before startup
 
-`scripts/e2e.mjs` 在启动任何进程前检查：
+`scripts/e2e.mjs` checks before starting any process:
 
-- `--install` 仅允许 `link | tarball | git`；tarball 模式必须收到实际 `.tgz` 绝对路径和预期 SHA256。
-- 端口合法且空闲；未指定时用 Node 标准库申请空闲端口。
-- `--dsh-root` 与 `--dsh-bin` 都是绝对路径；`realpath(--dsh-bin)` 必须位于同一个 `realpath(--dsh-root)` 下，默认不从 PATH 寻找 `dsh`。
-- DSH_ROOT、精确宿主二进制、Playwright 入口、Chrome 可加载。
-- 记录 `git -C "$DSH_ROOT" rev-parse HEAD`，并与调用方声明的宿主 SHA 完全一致；日志开头同时打印宿主 SHA、插件 SHA/包 SHA、Node 与 pnpm 版本，但不打印任何 Key。
-- DSH checkout 含阶段 1 的 fence source 契约和 `dsh.client` 清单读取能力。
-- link 模式已存在三个构建入口；tarball 模式文件与 SHA 匹配；git 模式仓库与完整 ref 可访问。
-- 吸收当前 `scripts/e2e.mjs` WIP 的正确意图：新 profile 若出现“选择工作区”，用 filechooser 选择 E2E 临时工作区；随后必须等 composer 真正脱离 inert/disabled。等待超时要保存截图与日志并失败，禁止保留 `.catch(() => {})` 后继续 fill 的假容错。
-- 完整模型模式要求 API Key，但绝不打印；`--smoke` 模式不要求 Key。
+- `--install` allows only `link | tarball | git`; tarball mode must receive the actual `.tgz` absolute path and the expected SHA256.
+- The port is valid and free; when unspecified, request a free port using the Node standard library.
+- `--dsh-root` and `--dsh-bin` are both absolute paths; `realpath(--dsh-bin)` must be under the same `realpath(--dsh-root)`, and by default `dsh` is not looked up from PATH.
+- DSH_ROOT, the exact host binary, the Playwright entry, and Chrome are loadable.
+- Record `git -C "$DSH_ROOT" rev-parse HEAD` and require it to exactly match the host SHA declared by the caller; the start of the log also prints the host SHA, plugin SHA/package SHA, Node and pnpm versions, but prints no Key.
+- The DSH checkout contains the stage 1 fence source contract and the `dsh.client` manifest reading capability.
+- In link mode the three build entries already exist; in tarball mode the files match the SHA; in git mode the repo and full ref are reachable.
+- Absorb the correct intent of the current `scripts/e2e.mjs` WIP: if the new profile shows "select workspace", use the filechooser to select the E2E temporary workspace; then must wait until the composer genuinely leaves inert/disabled. On wait timeout, save a screenshot and logs and fail; keeping a `.catch(() => {})` and then continuing to fill is a forbidden false tolerance.
+- Full model mode requires an API Key but never prints it; `--smoke` mode requires no Key.
 
-### 6.2 真实日志与窄清理
+### 6.2 Real logs and narrow cleanup
 
-- dsh web 的 stdout/stderr 真正写进 `webLog`。
-- 启动失败输出日志尾部。
-- cleanup 放进 `finally`；不要依赖 `process.on('exit')` 的异步清理。
-- 先向精确 child/process group 发正常终止，超时后才强制结束。
-- 禁止 broad `pkill`；不能触碰用户现有 3080 listener。
-- 失败保留或复制日志和截图到稳定 artifacts；成功才清临时目录。
+- dsh web's stdout/stderr is genuinely written into `webLog`.
+- On startup failure, output the tail of the log.
+- Put cleanup in `finally`; do not rely on asynchronous cleanup in `process.on('exit')`.
+- First send a normal termination to the exact child/process group, and force-kill only after a timeout.
+- Broad `pkill` is forbidden; the user's existing 3080 listener must not be touched.
+- On failure keep or copy logs and screenshots to stable artifacts; clear the temp directory only on success.
 
-### 6.3 杜绝 action 假通过
+### 6.3 Eliminate false action passes
 
-当前 `lastText()` 会被按钮本地“已响应”改变。改为使用 DSH 已有稳定 DOM 标记：
+Currently `lastText()` is changed by the button's local "responded". Change to using DSH's existing stable DOM markers:
 
-1. 点击前记录最后一个 `[data-chat-flow-kind="assistant-step"]` 的 `data-chat-flow-key`。
-2. 等待当前助手完成（内部不再有 `[data-streaming]`）。
-3. 点击 action。
-4. 必须出现新的 assistant-step key，且新节点结束 streaming；或出现由新 operation source 驱动的面板 snapshot。
-5. 仅按钮 chip 或同一 DOM 文本变化不得算响应。
-6. 页面 `pageerror`、client.js 404 或新回复超时都失败。
+1. Before clicking, record the `data-chat-flow-key` of the last `[data-chat-flow-kind="assistant-step"]`.
+2. Wait for the current assistant to finish (no more `[data-streaming]` inside).
+3. Click the action.
+4. A new assistant-step key must appear and the new node must finish streaming; or a panel snapshot driven by the new operation source must appear.
+5. A button chip alone or the same DOM text changing must not count as a response.
+6. Page `pageerror`, a client.js 404, or a new-reply timeout all fail.
 
-git 安装增加 `--ref <完整 SHA>`，URL 固定到候选提交；不再测试变化中的 main 后声称候选通过。
+Add `--ref <full SHA>` to git installation, pinning the URL to the candidate commit; no longer test a moving main and then claim the candidate passed.
 
-### 6.4 两层 E2E
+### 6.4 Two-layer E2E
 
-| 层 | 何时跑 | 不使用/使用模型额度 | 断言 |
+| Layer | When it runs | No model quota / uses model quota | Assertions |
 |---|---|---|---|
-| `--smoke` | 每个 PR CI | 不使用 | 精确宿主二进制、安装、profile、首页 200、client.js 200、页面无异常、插件 boot |
-| 完整 E2E | 手动发布门禁 | 使用受保护 Key | 精确宿主二进制、模型 fence、UI、action 消息、真实新助手回复、面板更新 |
+| `--smoke` | Every PR CI | Does not use | Exact host binary, install, profile, homepage 200, client.js 200, no page exceptions, plugin boot |
+| Full E2E | Manual release gate | Uses a protected Key | Exact host binary, model fence, UI, action message, genuine new assistant reply, panel update |
 
-完整 E2E 必测三条路径，且都使用同一宿主 SHA：link 当前候选、实际 tarball + SHA256、git 固定插件 SHA。tarball 路径负责完成阶段 5 延后的普通围栏、Mermaid、保留时 scene3d 和真实 profile 加载验收。
+The full E2E must test three paths, all using the same host SHA: link the current candidate, the actual tarball + SHA256, and git with the pinned plugin SHA. The tarball path is responsible for completing the ordinary fences, Mermaid, scene3d when kept, and real profile loading acceptance deferred from stage 5.
 
-### 6.5 修复 CI 路径与矩阵
+### 6.5 Fix the CI path and matrix
 
-当前 CI 克隆 DSH 到 `$HOME/.dsh/source/current`，但 tsconfig/vitest 的 `../../.dsh` 在 GitHub workspace 下解析到另一目录。统一为一个明确的 `DSH_ROOT`：
+The current CI clones DSH to `$HOME/.dsh/source/current`, but `../../.dsh` in tsconfig/vitest resolves to another directory under the GitHub workspace. Unify into one explicit `DSH_ROOT`:
 
-- CI 先把 `DSH_ROOT` 计算为 `$GITHUB_WORKSPACE/../../.dsh/source/current` 的规范化绝对路径，再克隆到该处；这样也与现有 TypeScript paths 一致。
-- 每个矩阵把目标 DSH ref 解析成完整 SHA，checkout 后先断言 `git -C "$DSH_ROOT" rev-parse HEAD` 等于该 SHA，再在该 checkout 内执行 `corepack pnpm install --frozen-lockfile` 与 `corepack pnpm run build`。
-- E2E 的 `DSH_BIN` 固定为构建出的绝对路径 `$DSH_ROOT/apps/cli/lib/bin.js`；所有 `dsh web/run/plugin` 子命令都直接 spawn 这个文件，禁止调用 PATH 上的全局 `dsh`。把真实宿主 SHA 与 DSH_BIN realpath 保存为 CI artifact。
-- `vitest.config.ts` 真正读取 `process.env.DSH_ROOT`，默认才使用本机路径。
-- 阶段 1 尚未合并时，插件验证必须显式指向宿主候选 worktree；不得临时改动活跃 `~/.dsh/source/current`。可在 `/private/tmp` 生成只用于该次 `tsc -p` 的扩展配置覆盖 paths，绝不提交机器绝对路径。
-- 检查前用 `test -f "$DSH_ROOT/packages/client/ui-primitives/src/index.ts"` 显式预检。
+- CI first computes `DSH_ROOT` as the normalized absolute path of `$GITHUB_WORKSPACE/../../.dsh/source/current`, then clones there; this also matches the existing TypeScript paths.
+- Each matrix resolves the target DSH ref into a full SHA, and after checkout first asserts `git -C "$DSH_ROOT" rev-parse HEAD` equals that SHA, then runs `corepack pnpm install --frozen-lockfile` and `corepack pnpm run build` inside that checkout.
+- The E2E `DSH_BIN` is pinned to the built absolute path `$DSH_ROOT/apps/cli/lib/bin.js`; all `dsh web/run/plugin` subcommands spawn this file directly, and calling the global `dsh` on PATH is forbidden. Save the real host SHA and the DSH_BIN realpath as CI artifacts.
+- `vitest.config.ts` genuinely reads `process.env.DSH_ROOT` and only falls back to the local path by default.
+- While stage 1 is not yet merged, plugin verification must explicitly point at the host candidate worktree; do not temporarily modify the active `~/.dsh/source/current`. An extended config overriding paths only for that `tsc -p` run may be generated in `/private/tmp`, but machine absolute paths must never be committed.
+- Before checking, explicitly preflight with `test -f "$DSH_ROOT/packages/client/ui-primitives/src/index.ts"`.
 
-账单恢复后设置两个阻塞矩阵：
+After billing recovers, set up two blocking matrices:
 
-| Node | DSH ref | 目的 |
+| Node | DSH ref | Purpose |
 |---|---|---|
-| 22.19.x | 阶段 1 宿主契约的不可变 SHA/标签 | 最低支持版本 |
-| 24.x | DSH 当前 main | 前向集成 |
+| 22.19.x | The immutable SHA/tag of the stage 1 host contract | Minimum supported version |
+| 24.x | DSH current main | Forward integration |
 
-每个矩阵运行：冻结安装、类型检查、全量测试、构建、pack 校验、lib drift 和 no-key smoke。
+Each matrix runs: frozen install, typecheck, full tests, build, pack verification, lib drift, and no-key smoke.
 
-### 6.6 GitHub Billing 外部阻塞
+### 6.6 GitHub Billing external blocker
 
-最近失败运行：`31501520044`、`31427328829`、`31426561376`。三次均为 `steps: []`、`runner_id: 0`，原始原因是近期付款失败或 spending limit。
+Recent failed runs: `31501520044`, `31427328829`, `31426561376`. All three had `steps: []` and `runner_id: 0`, originally caused by a recent payment failure or spending limit.
 
-组织管理员需先：
+The org admin must first:
 
-1. 修复 GitHub Billing 或提高 Actions spending limit。
-2. 重跑最新失败 run，确认获得非零 runner 且 steps 真正执行。
-3. 再验证 `DSH_REPO_TOKEN` 能只读 clone 私有 DSH 仓；它不是当前账单失败原因，但此前从未实际跑到该步骤。
-4. 把两个兼容矩阵设为 required checks。
+1. Fix GitHub Billing or raise the Actions spending limit.
+2. Re-run the latest failed run and confirm a non-zero runner is obtained and steps genuinely execute.
+3. Then verify `DSH_REPO_TOKEN` can read-only clone the private DSH repo; it is not the current billing failure cause, but this step was never actually reached before.
+4. Set both compatibility matrices as required checks.
 
-Billing 未恢复时可以完成本地代码和 PR，但不得宣称发布门禁完成。
+While Billing is not restored, local code and PRs may be completed, but the release gate must not be claimed complete.
 
-### 6.7 文档事实修正
+### 6.7 Documentation fact corrections
 
-README：
+README:
 
-- 删除“commit >= SHA”的表达；Git SHA 没有大小顺序。
-- 最终写“需要包含阶段 1 宿主提交 `<SHA>` 的 DSH 版本”。
-- 可在历史说明中指出 `0545fdcb` 是本计划前当前清单契约的最低已验证点，但它不满足新 FenceSource 契约。
-- 删除硬编码“135 测试”，改为“类型检查 + 全量测试 + 构建”；当次 208+ 证据放 CI/Release。
-- 把“面板可无限长大”改成“整面板最多 200 节点，达到上限后应发送 replace”。
-- 删除 git/link 必须下载 Mermaid/Three/React 的过期说法。
-- 删除 password 教学，增加秘密信息禁令。
-- 更新 E2E 命令与 smoke/固定 SHA 说明。
+- Delete the "commit >= SHA" phrasing; Git SHAs have no ordering.
+- Finally state "requires a DSH version containing the stage 1 host commit `<SHA>`".
+- The history note may point out that `0545fdcb` is the lowest verified point of the current manifest contract before this plan, but it does not satisfy the new FenceSource contract.
+- Delete the hardcoded "135 tests" and change it to "typecheck + full tests + build"; put the current 208+ evidence in CI/Release.
+- Change "the panel can grow without bound" to "the whole panel is at most 200 nodes; send a replace when the limit is reached".
+- Delete the outdated statement that git/link must download Mermaid/Three/React.
+- Delete the password tutorial and add the secret information prohibition.
+- Update the E2E commands and the smoke/pinned SHA description.
 
-`CHANGELOG.md`：
+`CHANGELOG.md`:
 
 ```text
 # Changelog
 
 ## [Unreleased]
-### 新增
-### 修改
-### 修复
-### 安全
+### Added
+### Changed
+### Fixed
+### Security
 
 ## [0.3.4] - 2026-08-11
 ...
 ```
 
-保留历史版本当时的数字，不伪造历史标签。阶段全部验收后再把 Unreleased 转成 `0.4.0`。
+Keep the numbers historical versions had at the time, and do not fabricate historical tags. Only after all stages are accepted, turn Unreleased into `0.4.0`.
 
-系统提示与 `SKILL.md` 必须同步：stable panel 语义、200 节点总上限、password 禁令、append 达上限后 replace。
+The system prompt and `SKILL.md` must be kept in sync: stable panel semantics, the 200 node total cap, the password prohibition, and replace after append reaches the limit.
 
-### 6.8 发布候选顺序
+### 6.8 Release candidate order
 
-两个仓库使用兼容元组，不假装共享一个 SHA：
+The two repos use a compatibility tuple and do not pretend to share one SHA:
 
 ```text
-HOST_SHA   = 已含阶段 1 契约、已进入受支持 DSH 分支且可稳定拉取的完整 SHA
-PLUGIN_SHA = 含 0.4.0 版本、changelog、锁文件和确定构建产物的插件完整 SHA
+HOST_SHA   = full SHA that already contains the stage 1 contract, has entered a supported DSH branch, and can be pulled reliably
+PLUGIN_SHA = full plugin SHA containing version 0.4.0, changelog, lockfile, and deterministic build artifacts
 ```
 
-严格顺序：
+Strict order:
 
-1. DSH 主仓阶段 1 先通过自身门禁并进入受支持分支；冻结可拉取的 `HOST_SHA`。仅存在于临时 worktree/未发布 PR 的 SHA 不能作为最低宿主。
-2. 插件所有实现与文档完成后，把版本改为 `0.4.0`、定稿 changelog，先重建，再把确定生成的 `lib/`、锁文件与清单纳入同一个最后候选提交，得到 `PLUGIN_SHA_A`。
-3. 从干净 `PLUGIN_SHA_A + HOST_SHA` 运行全部本地门禁，生成真实 tarball，保存文件表、大小和 SHA256，并完成 link、tarball 两条完整 E2E。
-4. 推送 `PLUGIN_SHA_A`，等待两个远端矩阵真实通过，再完成 git `--ref PLUGIN_SHA_A` 完整 E2E；此时只能称“合并前候选通过”。
-5. 未获肠粉明确授权，停在 PR/候选状态，不合并、不创建 tag 或 Release。
-6. 获得合并授权后执行约定的合并方式，立即读取目标分支实际结果 `PLUGIN_SHA_FINAL`。若它与 `PLUGIN_SHA_A` 不同（merge/squash/rebase 都可能改变），此前证据不能直接挪用。
-7. 冻结唯一发布元组 `PLUGIN_SHA_FINAL + HOST_SHA`：从该干净 SHA 重新构建、重新打 tarball，并重跑本地门禁、两个远端矩阵、link/tarball/git 三条完整 E2E。任何后续提交或宿主 SHA 变化都使证据失效，必须再次全量重跑。
-8. 只有最终包版本、changelog、构建产物、tarball SHA256、CI、三条 E2E 全部指向这一个发布元组时，才可按授权创建 `v0.4.0`，并断言 tag 精确指向 `PLUGIN_SHA_FINAL`。
-9. 先创建 draft Release；再从明确的实际分发入口，用全新 `DSH_HOME`、精确 `DSH_BIN` 和 `HOST_SHA` 安装。成功后才转正式 Release。
+1. DSH main repo stage 1 first passes its own gate and enters a supported branch; freeze the pullable `HOST_SHA`. A SHA that exists only in a temporary worktree/unpublished PR cannot serve as the minimum host.
+2. After all plugin implementation and documentation is done, change the version to `0.4.0`, finalize the changelog, rebuild first, then include the deterministically generated `lib/`, lockfile, and manifest in the same final candidate commit, yielding `PLUGIN_SHA_A`.
+3. From the clean `PLUGIN_SHA_A + HOST_SHA`, run all local gates, generate a real tarball, save the file table, sizes, and SHA256, and complete both link and tarball full E2E runs.
+4. Push `PLUGIN_SHA_A`, wait for both remote matrices to genuinely pass, then complete the git `--ref PLUGIN_SHA_A` full E2E; at this point it may only be called "pre-merge candidate passing".
+5. Without explicit authorization from Changfenhuang, stop at the PR/candidate state and do not merge, create a tag, or create a Release.
+6. After merge authorization is granted, perform the agreed merge method and immediately read the target branch's actual result `PLUGIN_SHA_FINAL`. If it differs from `PLUGIN_SHA_A` (merge/squash/rebase can all change it), the earlier evidence cannot be reused directly.
+7. Freeze the single release tuple `PLUGIN_SHA_FINAL + HOST_SHA`: rebuild from that clean SHA, rebuild the tarball, and re-run local gates, both remote matrices, and all three full E2E paths (link/tarball/git). Any subsequent commit or host SHA change invalidates the evidence and requires a full re-run.
+8. Only when the final package version, changelog, build artifacts, tarball SHA256, CI, and all three E2E runs point to this one release tuple may `v0.4.0` be created as authorized, asserting the tag points exactly to `PLUGIN_SHA_FINAL`.
+9. Create a draft Release first; then install from the explicit actual distribution entry using a brand new `DSH_HOME`, the exact `DSH_BIN`, and `HOST_SHA`. Only after success, promote it to a formal Release.
 
-当前 `0.3.4` 没有同版本正式 tag/Release；不补造 0.3.x 历史标签，直接让下一次真实发布从 `0.4.0` 对齐。
+The current `0.3.4` has no same-version formal tag/Release; do not fabricate 0.3.x historical tags, and instead let the next real release align directly from `0.4.0`.
 
-### 6.9 外部责任与解除条件
+### 6.9 External responsibilities and unblock conditions
 
-| 外部事项 | 负责人 | 解除条件 |
+| External item | Owner | Unblock condition |
 |---|---|---|
-| GitHub Actions 账单/额度 | `dsh-external` 组织管理员 | 失败 run 获得真实 runner 并开始执行 steps |
-| DSH 私仓读取令牌 | DSH 仓库管理员 | `DSH_REPO_TOKEN` 能只读拉取固定 host ref，并完成组织授权 |
-| 真实模型 E2E Key | 发布负责人 | 只放在受保护 Environment，日志不输出值，手动门禁可运行 |
-| 最低宿主不可变 ref | DSH 主仓维护者 | 阶段 1 已进入受支持分支/发布线，完整 SHA 可由 CI 和用户稳定拉取；临时 worktree 或未合 PR 不算解除 |
-| Required checks | 插件仓管理员 | Node 22/最低宿主与 Node 24/main 两个矩阵均设为必需 |
-| 最终分发渠道 | 产品/发布负责人 | 明确继续私有 Git URL，或另行授权 npm/Workshop；不能把提交可见当成可安装 |
-| 合并、tag、Release | 肠粉 | 明确授权，并且证据固定为 `插件最终 SHA + 最低宿主 SHA` 兼容元组；两个仓库各自的 SHA 不得混写 |
+| GitHub Actions billing/quota | `dsh-external` org admin | Failed runs obtain a real runner and start executing steps |
+| DSH private repo read token | DSH repo admin | `DSH_REPO_TOKEN` can read-only pull the pinned host ref, and org authorization is completed |
+| Real model E2E Key | Release owner | Kept only in a protected Environment, the log never outputs the value, and the manual gate can run |
+| Minimum host immutable ref | DSH main repo maintainer | Stage 1 has entered a supported branch/release line, and the full SHA can be pulled reliably by CI and users; a temporary worktree or unmerged PR does not count as unblocked |
+| Required checks | Plugin repo admin | Both the Node 22/minimum host and Node 24/main matrices are set as required |
+| Final distribution channel | Product/release owner | Explicitly continue with the private Git URL, or separately authorize npm/Workshop; commit visibility must not be treated as installability |
+| Merge, tag, Release | Changfenhuang | Explicit authorization, and evidence pinned to the `final plugin SHA + minimum host SHA` compatibility tuple; the two repos' respective SHAs must not be mixed |
 
 ---
 
-## 7. 自动化与真实验收矩阵
+## 7. Automation and Real Acceptance Matrix
 
-| 能力 | 单元/组件测试 | 构建/包测试 | 隔离浏览器 | 人工真实输入 |
+| Capability | Unit/component tests | Build/package tests | Isolated browser | Manual real input |
 |---|---|---|---|---|
-| FenceSource | DSH host tests | host typecheck | 两消息 source | 不需要 |
-| append/排序 | operation reducer tests | plugin typecheck | 两轮 panel append | 复查面板内容 |
-| stateKey | mounted panel update test | localStorage check | 换内容不串 | 刷新/重开 |
-| tabs 表单 | RTL 交互测试 | 无 | tab 内 submit | 点选/切 tab |
-| IME | composition/keyCode tests | 无 | headless 可补 | 中文拼音必验 |
-| password | guard/DOM/storage test | pack 文案扫描 | 无 password DOM | 不输入真实秘密 |
-| partial | parse 次数上限 | benchmark 记录 | 病态 fence 不冻结 | 不需要 |
-| scene3d | render 次数/事件测试 | bundle smoke | drag/wheel/idle | 不需要 |
-| 安装器 | 临时 DSH_HOME 七用例 | tarball install | client.js 200 | 不触碰活跃 profile |
-| E2E | 参数/失败分支 | 固定 SHA | 完整闭环 | 发布前复核 |
+| FenceSource | DSH host tests | host typecheck | two-message source | Not needed |
+| append/ordering | operation reducer tests | plugin typecheck | two rounds of panel append | Review panel content |
+| stateKey | mounted panel update test | localStorage check | content swap does not mix | Refresh/reopen |
+| tabs forms | RTL interaction tests | None | submit inside tab | Click/switch tab |
+| IME | composition/keyCode tests | None | headless can supplement | Chinese pinyin mandatory |
+| password | guard/DOM/storage test | pack text scan | no password DOM | Do not type real secrets |
+| partial | parse attempt cap | benchmark record | pathological fence does not freeze | Not needed |
+| scene3d | render count/event tests | bundle smoke | drag/wheel/idle | Not needed |
+| Installer | temporary DSH_HOME seven cases | tarball install | client.js 200 | Do not touch the active profile |
+| E2E | parameters/failure branches | pinned SHA | full closed loop | Re-verify before release |
 
-## 8. 量化目标
+## 8. Quantitative Targets
 
-| 指标 | 当前 | 目标 |
+| Metric | Current | Target |
 |---|---:|---:|
-| 现有测试 | 208 | 全部保留 + 本计划用例；不以凑数字为目标 |
-| 病态 24 KB partial | 约 1682ms | parse 调用 ≤33；同机 P95 <50ms |
-| 静止 scene3d | 永久 RAF | 0 个持续帧 |
-| panel 总节点 | 无上限 | ≤200 |
-| 中间生成文件 | 20 JS + 40 map | 0 |
-| 运行 dependencies | 4 | 0（React/DSH 走 peer/宿主） |
+| Existing tests | 208 | All kept + this plan's cases; padding numbers is not the goal |
+| Pathological 24 KB partial | about 1682ms | parse calls ≤33; same-machine P95 <50ms |
+| Idle scene3d | permanent RAF | 0 continuous frames |
+| panel total nodes | no cap | ≤200 |
+| Intermediate generated files | 20 JS + 40 map | 0 |
+| Runtime dependencies | 4 | 0 (React/DSH via peer/host) |
 | ReactDOM peer | 1 | 0 |
-| npm 包文件 | 114 | 明确白名单 |
-| npm 包压缩 | 4.82 MB | <3 MB |
-| npm 包解包 | 25.16 MB | <10 MB |
-| 主 client bundle | 9.02 MB | 本轮不回归；保留 3D 时不虚报缩小 |
-| 同源码重复构建 | CSS map 顺序漂移 | 5 次 SHA 完全一致 |
+| npm package files | 114 | explicit allowlist |
+| npm package packed | 4.82 MB | <3 MB |
+| npm package unpacked | 25.16 MB | <10 MB |
+| Main client bundle | 9.02 MB | No regression this round; do not overstate the reduction when 3D is kept |
+| Repeated build of the same source | CSS map order drift | 5 builds with identical SHA |
 
-## 9. 提交隔离规则
+## 9. Commit Isolation Rules
 
-建议提交顺序：
+Suggested commit order:
 
-1. DSH 主仓：`feat(client): give settled fences stable source identity`
-2. 插件：`fix(panel): fold stable ordered panel operations`
-3. 插件：`fix(forms): isolate state and protect input boundaries`
-4. 插件：`perf(client): bound partial parsing and stop idle rendering`
-5. 插件：`build: make client output deterministic`
-6. 插件：`build: bundle from src and emit declarations only`
-7. 插件：`fix(install): protect skill sync targets`
-8. 插件：`chore(package): narrow dependencies and published files`
-9. 插件：`test(release): make smoke and e2e evidence truthful`
-10. 插件：`docs: align support and release facts`
-11. 最后候选：`release: prepare 0.4.0`
+1. DSH main repo: `feat(client): give settled fences stable source identity`
+2. Plugin: `fix(panel): fold stable ordered panel operations`
+3. Plugin: `fix(forms): isolate state and protect input boundaries`
+4. Plugin: `perf(client): bound partial parsing and stop idle rendering`
+5. Plugin: `build: make client output deterministic`
+6. Plugin: `build: bundle from src and emit declarations only`
+7. Plugin: `fix(install): protect skill sync targets`
+8. Plugin: `chore(package): narrow dependencies and published files`
+9. Plugin: `test(release): make smoke and e2e evidence truthful`
+10. Plugin: `docs: align support and release facts`
+11. Final candidate: `release: prepare 0.4.0`
 
-必须同提交：src 直构建、声明-only、中间 JS/map 删除。
+Must be in the same commit: direct src build, declarations-only, intermediate JS/map deletion.
 
-必须分开：
+Must be separate:
 
-- CSS 排序与构建链重构。
-- 安装器安全与依赖归类。
-- scene3d 产品删除与任何工程优化。
-- 版本/tag/Release 与普通修复。
+- CSS ordering and the build chain refactor.
+- Installer safety and dependency classification.
+- scene3d product deletion and any engineering optimization.
+- Version/tag/Release and ordinary fixes.
 
-## 10. 停止条件与禁止虚假完成
+## 10. Stop Conditions and Prohibition of False Completion
 
-- DSH 主仓不接受稳定来源契约时，停止面板 PR；不得在插件里造随机 ID 顶替。
-- GitHub Billing 未恢复时，状态只能是“本地与 PR 完成，远端发布门禁阻塞”。
-- `DSH_REPO_TOKEN` 失败时，只修 token/权限；不要把私有仓库 clone 跳过。
-- 完整 E2E 没有真实新助手回复时必须失败，不能靠本地 chip、截图或 HTTP 200 兜底。
-- 当前活跃 profile、3080 服务与用户浏览器不得成为自动测试环境。
-- `scene3d` 没有真实使用证据和产品确认时不删除；保留就明确接受约 1.8 MB bundle 成本。
-- 任何测试、lint、typecheck、build 或 pack 门禁未过，都不能把计划状态标为完成。
-- 只完成代码、但没完成最终 `插件 SHA + 宿主 SHA` 元组的 CI、pack、link/tarball/git 三条 E2E，不能称为“可发布”。
+- When the DSH main repo does not accept the stable source contract, stop the panel PR; do not create random IDs inside the plugin to substitute for it.
+- While GitHub Billing is not restored, the status can only be "local and PR complete, remote release gate blocked".
+- When `DSH_REPO_TOKEN` fails, fix only the token/permissions; do not skip the private repo clone.
+- The full E2E must fail when there is no genuine new assistant reply; it must not fall back on a local chip, screenshot, or HTTP 200.
+- The current active profile, the 3080 service, and the user's browser must not become the automated test environment.
+- Do not delete `scene3d` without real usage evidence and product confirmation; keeping it means explicitly accepting the roughly 1.8 MB bundle cost.
+- If any test, lint, typecheck, build, or pack gate has not passed, the plan status cannot be marked complete.
+- Code completed alone, without CI, pack, and the three link/tarball/git E2E runs for the final `plugin SHA + host SHA` tuple, cannot be called "releasable".
 
-## 11. DSH 执行回报格式
+## 11. DSH Execution Report Format
 
-每完成一个阶段，DSH 必须按以下格式回报，不写流水账：
+After completing each stage, DSH must report in the following format, without a chronological log:
 
-| 字段 | 必填内容 |
+| Field | Required content |
 |---|---|
-| 当前阶段 | 阶段编号与名称 |
-| 实际改动 | 用户可感知结果 + 核心根因修复 |
-| 变更范围 | 仓库、插件 SHA、宿主 SHA、文件数、增删行 |
-| 自动证据 | 命令、通过数、构建/包大小 |
-| 真实证据 | 隔离浏览器场景、截图/日志路径 |
-| 未完成 | 明确剩余阶段或外部阻塞 |
-| 工作区 | `git status --short --branch` |
+| Current stage | Stage number and name |
+| Actual changes | User-perceivable result + core root-cause fix |
+| Change scope | Repo, plugin SHA, host SHA, file count, added/deleted lines |
+| Automated evidence | Command, pass count, build/package size |
+| Real evidence | Isolated browser scenario, screenshot/log path |
+| Incomplete | Clearly remaining stages or external blockers |
+| Workspace | `git status --short --branch` |
 
-不要只说“测试通过”或“功能已修复”；必须分别给出插件 SHA、宿主 SHA 和能复现的证据。
+Do not only say "tests pass" or "the bug is fixed"; must give the plugin SHA, host SHA, and reproducible evidence separately.
 
-## 12. 可直接交给 DSH 的执行指令
+## 12. Execution Instruction That Can Be Handed Directly to DSH
 
-> 严格执行 `docs/plans/2026-08-11-dsh-genui-hardening-execution-plan.md`。先从插件和 DSH 主仓最新远端分别建立干净独立 worktree；保留主工作区现有本地提交 `692a2b7` 与未提交 `scripts/e2e.mjs` onboarding WIP，不得 reset、覆盖或自动 cherry-pick。按阶段 0→6 串行推进：先完成带真实 `context.sessionId` 的 DSH settled FenceSource 契约，再改插件事务式、定序且有固定上限的 panel operation 模型；不要使用全局 active session、随机 ID、内容哈希、Infinity、兼容层或到达顺序。每阶段完成全部定向测试、全量测试和规定验收后再进入下一阶段。所有浏览器/E2E 使用独立 DSH_HOME、临时工作区、空闲端口、headless Chrome 和目标宿主 checkout 构建出的绝对 DSH_BIN，禁止触碰活跃 3080 服务、PATH 上的旧 dsh 或 broad pkill。发布证据必须分别记录插件 SHA 与宿主 SHA；未获肠粉明确授权，不合并、不打 tag、不发布。CI Billing、宿主合并或权限阻塞必须如实报告，不能跳过后宣称完成。
+> Strictly execute `docs/plans/2026-08-11-dsh-genui-hardening-execution-plan.md`. First create clean, independent worktrees from the latest remotes of the plugin and the DSH main repo respectively; preserve the main workspace's existing local commit `692a2b7` and the uncommitted `scripts/e2e.mjs` onboarding WIP, and do not reset, overwrite, or auto cherry-pick. Advance serially through stages 0→6: first complete the DSH settled FenceSource contract with a real `context.sessionId`, then change the plugin to a transactional, ordered panel operation model with a fixed upper bound; do not use the global active session, random IDs, content hashes, Infinity, compatibility layers, or arrival order. After each stage completes all targeted tests, full tests, and the specified acceptance, move to the next stage. All browser/E2E runs use an independent DSH_HOME, temporary workspace, free port, headless Chrome, and the absolute DSH_BIN built from the target host checkout; touching the active 3080 service, the old dsh on PATH, or broad pkill is forbidden. Release evidence must record the plugin SHA and host SHA separately; without explicit authorization from Changfenhuang, do not merge, do not tag, do not publish. CI billing, host merge, or permission blockers must be reported truthfully, and completion must not be claimed after skipping them.

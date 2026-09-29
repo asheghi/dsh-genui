@@ -11,7 +11,7 @@ describe('defaultPanelSpec()', () => {
   it('is a valid repairable spec', () => {
     const repaired = repairGenuiSpec(defaultPanelSpec())
     expect(repaired).not.toBeNull()
-    expect(repaired!.title).toBe('GenUI 面板')
+    expect(repaired!.title).toBe('GenUI panel')
     expect(repaired!.items.length).toBeGreaterThan(3)
   })
 })
@@ -78,16 +78,16 @@ describe('/panel slash source', () => {
     expect(getPanelSpec(SID)).toBeNull()
   })
 
-  it('relays an instruction to the model on /panel <指令> instead of swallowing it', async () => {
-    const outcome = await source.matchEnter!({ sessionId: SID } as never, '/panel 总结一下会话内容', new AbortController().signal)
+  it('relays an instruction to the model on /panel <instruction> instead of swallowing it', async () => {
+    const outcome = await source.matchEnter!({ sessionId: SID } as never, '/panel summarize the session', new AbortController().signal)
     expect(outcome).not.toBeUndefined()
     const claim = (outcome as { claim: { submit: (a: string) => Promise<unknown> } }).claim
-    const result = await claim.submit('总结一下会话内容')
+    const result = await claim.submit('summarize the session')
     expect(result).toEqual({ kind: 'success' })
     // The default spec shows instantly for feedback…
     expect(getPanelSpec(SID)).toEqual(defaultPanelSpec())
     // …and the instruction reached the model verbatim.
-    expect(instructions).toContainEqual({ sessionId: SID, instruction: '总结一下会话内容' })
+    expect(instructions).toContainEqual({ sessionId: SID, instruction: 'summarize the session' })
   })
 
   it('ignores non-panel lines in matchEnter', async () => {

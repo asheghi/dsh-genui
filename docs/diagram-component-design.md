@@ -1,43 +1,48 @@
-# dsh-genui `diagram` 组件设计文档(移植 diagram-design)
+# dsh-genui `diagram` component design document (porting diagram-design)
 
-> 目标:把 [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design)
-> 的 27 种编辑级视觉类型 + 设计系统(语义 token、正交连接器、反模式清单)
-> 移植为 dsh-genui 的一等公民组件 `diagram`,让模型能在 ```dsh-ui 围栏里
-> 直接输出品牌化、可访问、编辑级的 SVG 图。
+> Goal: port the 27 editorial-grade visual types plus the design system
+> (semantic tokens, orthogonal connectors, anti-pattern checklist) of
+> [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design)
+> into dsh-genui as a first-class component `diagram`, so the model can emit
+> branded, accessible, editorial-grade SVG diagrams directly inside a
+> ```dsh-ui fence.
 >
-> 状态:设计定稿(实现前基线)。上游版本:diagram-design v2.4 / dsh-genui 0.8.3。
+> Status: design finalized (baseline before implementation). Upstream version:
+> diagram-design v2.4 / dsh-genui 0.8.3.
 
 ---
 
-## 1. 设计目标与原则
+## 1. Design goals and principles
 
-| 原则 | 含义 |
+| Principle | Meaning |
 |---|---|
-| **一等公民** | `diagram` 进 spec.ts 白名单 + render-node switch,与 `mermaid`/`plot` 同级,自动获得 guard、流式、持久化、自愈 |
-| **声明式 spec** | 模型输出**数据**(节点/边/布局意图),渲染器负责布局与样式——模型不需要手写 SVG path |
-| **编辑级默认** | 正交连接器、4px 网格、语义 token、反模式清单全部编码进渲染器,模型无法产出"AI slop" |
-| **可访问** | 每个图 `role="img"` + `aria-label`/`aria-describedby`;交互不引入 |
-| **上限硬编码** | 节点数、边数、accent 数等沿用 diagram-design 的复杂度预算,守卫层钳制 |
-| **轻依赖** | 纯 React + SVG,无 mermaid/three 运行时依赖;不新增资产路由 |
+| **First-class** | `diagram` joins the spec.ts allowlist + the render-node switch, on a par with `mermaid`/`plot`, and automatically gets guard, streaming, persistence and self-healing |
+| **Declarative spec** | The model emits **data** (nodes/edges/layout intent) and the renderer owns layout and styling — the model never hand-writes SVG paths |
+| **Editorial-grade defaults** | Orthogonal connectors, a 4px grid, semantic tokens and the anti-pattern checklist are all encoded in the renderer, so the model cannot produce "AI slop" |
+| **Accessible** | Every diagram gets `role="img"` + `aria-label`/`aria-describedby`; no interaction is introduced |
+| **Hard-coded limits** | Node count, edge count, accent count and the rest follow diagram-design's complexity budgets and are clamped by the guard layer |
+| **Light dependencies** | Pure React + SVG, with no mermaid/three runtime dependency; no new asset route |
 
-### 与 mermaid 的关系(不重复)
+### Relationship to mermaid (no overlap)
 
-`mermaid` 已覆盖 flowchart/sequence/class/gantt/pie/er/state/journey 的**自动布局**通用图。
-`diagram` 定位不同:**编辑级布局**——模型提供坐标意图(或按类型规则自动布局),
-渲染器按 diagram-design 规范精确排版。两者并存:用户要"快速自动布局"用 mermaid,
-要"编辑级品牌图"用 diagram。
+`mermaid` already covers the **automatic-layout** general-purpose diagrams of
+flowchart/sequence/class/gantt/pie/er/state/journey.
+`diagram` has a different focus: **editorial-grade layout** — the model supplies
+coordinate intent (or the type rules lay it out automatically) and the renderer
+composes it precisely to the diagram-design spec. The two coexist: use mermaid
+for "quick automatic layout", use diagram for "editorial-grade branded diagrams".
 
 ---
 
-## 2. Spec 形状
+## 2. Spec shape
 
-### 顶层
+### Top level
 
 ```json
 {
   "type": "diagram",
   "kind": "architecture | flowchart | sequence | state | er | timeline | swimlane | quadrant | radar | loop | nested | tree | org-chart | layers | venn | pyramid | bar | line | gantt | scatter | high-level | process | medallion | data-flow | dp-integration | dp-security-matrix | it-state",
-  "title": "可选标题(Instrument Serif)",
+  "title": "optional title (Instrument Serif)",
   "variant": "light | dark | editorial",
   "nodes": [ ... ],
   "edges": [ ... ],
@@ -45,91 +50,98 @@
 }
 ```
 
-- `kind` 决定布局语法与复杂度预算(见 §4)。
-- `variant` 缺省跟随宿主主题(`light` 或 `dark`);`editorial` 强制编辑级皮肤。
-- 品牌 token 缺省用内置 style-guide 默认;可选 `theme` 字段覆盖(见 §5)。
+- `kind` decides the layout grammar and the complexity budget (see §4).
+- `variant` follows the host theme by default (`light` or `dark`); `editorial`
+  forces the editorial skin.
+- Brand tokens default to the built-in style guide; an optional `theme` field
+  overrides them (see §5).
 
-### 节点 Node
+### Node
 
 ```json
 {
   "id": "n1",
-  "label": "用户可见名称(Geist sans)",
-  "sub": "可选技术子标签(Geist mono)",
+  "label": "user-visible name (Geist sans)",
+  "sub": "optional technical sublabel (Geist mono)",
   "type": "focal | backend | store | external | input | optional | security",
   "x": 40, "y": 40, "w": 120, "h": 48,
-  "tag": "可选类型角标,如 API"
+  "tag": "optional type corner badge, e.g. API"
 }
 ```
 
-### 边 Edge
+### Edge
 
 ```json
 {
   "from": "n1", "to": "n2",
-  "label": "可选边标签(≤14 字符,全大写)",
+  "label": "optional edge label (≤14 characters, all caps)",
   "kind": "solid | dashed | accent | link",
   "route": "auto | orthogonal | straight"
 }
 ```
 
-### 布局模型
+### Layout model
 
-**两种模式,由 `kind` 决定:**
+**Two modes, decided by `kind`:**
 
-1. **坐标模式**(architecture / it-state / high-level / process / data-flow / dp-* 等自由布局类):
-   模型给 `x/y/w/h`,渲染器负责正交连线、端口选择、桥接、边标签遮罩。
-2. **规则布局模式**(flowchart / sequence / state / er / timeline / swimlane / quadrant /
-   radar / loop / nested / tree / org-chart / layers / venn / pyramid / bar / line /
-   gantt / scatter):模型只给数据,渲染器按类型规则自动排版(与 diagram-design
-   各 type-*.md 的布局约定一致)。
+1. **Coordinate mode** (the free-layout kinds: architecture / it-state / high-level /
+   process / data-flow / dp-* and so on): the model supplies `x/y/w/h` and the
+   renderer handles orthogonal routing, port selection, bridging and edge-label masks.
+2. **Rule-layout mode** (flowchart / sequence / state / er / timeline / swimlane /
+   quadrant / radar / loop / nested / tree / org-chart / layers / venn / pyramid /
+   bar / line / gantt / scatter): the model supplies data only and the renderer
+   lays it out automatically by type rule (consistent with the layout conventions
+   in diagram-design's per-type type-*.md files).
 
-两种模式都执行**规范强制层**(§6):4px 网格、复杂度预算、反模式检查。
+Both modes run the **spec enforcement layer** (§6): 4px grid, complexity budgets,
+anti-pattern checks.
 
 ---
 
-## 3. 组件清单(27 种 kind → 渲染策略)
+## 3. Component inventory (27 kinds → render strategy)
 
-| kind | 布局模式 | 数据形状 | 复杂度预算 |
+| kind | Layout mode | Data shape | Complexity budget |
 |---|---|---|---|
-| `architecture` | 坐标 | nodes+edges+可zone | ≤9 节点,≤12 边,≤3 zones |
-| `it-state` | 坐标 | phase 分组 nodes | ≤9 节点,≤3 阶段 |
-| `flowchart` | 规则 | 节点+分支边 | ≤9 节点 |
-| `sequence` | 规则 | lifelines+messages | ≤5 lifelines,≤1 fragment |
-| `state` | 规则 | states+transitions+guards | ≤9 states |
-| `er` | 规则 | entities+fields+relations | ≤8 entities |
-| `timeline` | 规则 | events on axis | ≤12 events |
-| `swimlane` | 规则 | lanes+steps+handoffs | ≤5 lanes |
-| `quadrant` | 规则 | 2 轴 + items | ≤12 items |
-| `radar` | 规则 | axes+series | ≤5 axes,≤5 series |
-| `loop` | 规则 | hub+stations | ≤8 stations |
-| `nested` | 规则 | containment 树 | ≤6 层 |
-| `tree` | 规则 | 父子树 | ≤4 深 |
-| `org-chart` | 规则 | 归属/汇报树 | ≤12 节点,≤4 深 |
-| `layers` | 规则 | 层列表 | ≤6 层 |
-| `venn` | 规则 | 集合 | ≤3 圆 |
-| `pyramid` | 规则 | 层级值 | ≤6 层 |
-| `bar` | 规则 | 类目值 | ≤8 bars |
-| `line` | 规则 | 序列点 | ≤5 series |
-| `gantt` | 规则 | tasks+phases | ≤12 tasks |
-| `scatter` | 规则 | 点 | ≤30 点 |
-| `high-level` | 坐标 | 栈+集群 | ≤9 节点 |
-| `process` | 坐标 | 多角色步骤+数据交接 | ≤9 节点 |
-| `medallion` | 坐标 | 分层数据存储 | ≤9 节点 |
-| `data-flow` | 坐标 | 角色+步骤 | ≤9 节点 |
-| `dp-integration` | 坐标 | 源→核心→消费者 | ≤9 节点 |
-| `dp-security-matrix` | 规则 | 角色×权限矩阵 | ≤9×9 |
-| `it-state` | 坐标 | 阶段分组 | ≤9 节点 |
+| `architecture` | coordinate | nodes+edges+optional zones | ≤9 nodes, ≤12 edges, ≤3 zones |
+| `it-state` | coordinate | phase-grouped nodes | ≤9 nodes, ≤3 phases |
+| `flowchart` | rule | nodes + branch edges | ≤9 nodes |
+| `sequence` | rule | lifelines+messages | ≤5 lifelines, ≤1 fragment |
+| `state` | rule | states+transitions+guards | ≤9 states |
+| `er` | rule | entities+fields+relations | ≤8 entities |
+| `timeline` | rule | events on axis | ≤12 events |
+| `swimlane` | rule | lanes+steps+handoffs | ≤5 lanes |
+| `quadrant` | rule | 2 axes + items | ≤12 items |
+| `radar` | rule | axes+series | ≤5 axes, ≤5 series |
+| `loop` | rule | hub+stations | ≤8 stations |
+| `nested` | rule | containment tree | ≤6 levels |
+| `tree` | rule | parent/child tree | ≤4 deep |
+| `org-chart` | rule | ownership/reporting tree | ≤12 nodes, ≤4 deep |
+| `layers` | rule | layer list | ≤6 layers |
+| `venn` | rule | sets | ≤3 circles |
+| `pyramid` | rule | tier values | ≤6 levels |
+| `bar` | rule | category values | ≤8 bars |
+| `line` | rule | series points | ≤5 series |
+| `gantt` | rule | tasks+phases | ≤12 tasks |
+| `scatter` | rule | points | ≤30 points |
+| `high-level` | coordinate | stacks + clusters | ≤9 nodes |
+| `process` | coordinate | multi-role steps + data handoffs | ≤9 nodes |
+| `medallion` | coordinate | layered data storage | ≤9 nodes |
+| `data-flow` | coordinate | roles + steps | ≤9 nodes |
+| `dp-integration` | coordinate | source → core → consumers | ≤9 nodes |
+| `dp-security-matrix` | rule | role × permission matrix | ≤9×9 |
+| `it-state` | coordinate | phase grouping | ≤9 nodes |
 
-> 具体每个 kind 的 spec 字段与布局规则见 `docs/diagram-kinds.md`(随实现同步生成)。
+> The spec fields and layout rules of each individual kind are in
+> `docs/diagram-kinds.md` (generated alongside the implementation).
 
 ---
 
-## 4. 设计系统(内置 style-guide,语义 token)
+## 4. Design system (built-in style guide, semantic tokens)
 
-渲染器内置 diagram-design 的默认皮肤,以 CSS 变量或 SVG 常量形式存在:
+The renderer embeds diagram-design's default skin, expressed as CSS variables or
+SVG constants:
 
-| 角色 | Light | Dark |
+| Role | Light | Dark |
 |---|---|---|
 | `paper` | `#f5f5f5` | `#2d3142` |
 | `paper-2` | `#ececec` | `#393e53` |
@@ -141,106 +153,130 @@
 | `accent-tint` | `rgba(235,108,54,0.08)` | `rgba(240,138,89,0.10)` |
 | `link` | `#2e5aa8` | `#6a95d8` |
 
-- **焦点规则**:`accent` 只上 1–2 个元素;spec 的 `meta.focal` 计数,超出降级为 `ink`。
-- **节点类型 → 填充/描边**:focal→accent-tint/accent;backend→white/ink;
-  store→ink@5%/muted;external→ink@3%/ink@30%;input→muted@10%/soft;
-  optional→ink@2%/ink@20% dashed;security→accent@5%/accent@50% dashed。
-- **字体栈**:标题 Instrument Serif;节点名 Geist sans 600;子标签/边标签 Geist Mono。
-  (渲染器内用 CSS 栈,不强制外链 Google Fonts——宿主已提供字体环境时直接继承。)
+- **Focal rule**: `accent` goes on only 1–2 elements; the spec's `meta.focal`
+  counts them, and anything beyond degrades to `ink`.
+- **Node type → fill/stroke**: focal→accent-tint/accent; backend→white/ink;
+  store→ink@5%/muted; external→ink@3%/ink@30%; input→muted@10%/soft;
+  optional→ink@2%/ink@20% dashed; security→accent@5%/accent@50% dashed.
+- **Font stack**: titles Instrument Serif; node names Geist sans 600;
+  sublabels/edge labels Geist Mono.
+  (CSS stacks inside the renderer, with no forced Google Fonts link — when the
+  host already provides a font environment, it is inherited directly.)
 
-### 主题覆盖(可选)
+### Theme override (optional)
 
 ```json
 "theme": { "paper": "#fffdf7", "ink": "#2a2416", "accent": "#c94f1e" }
 ```
 
-渲染器合并进语义 token;未提供字段回退内置默认。PR 阶段先支持整组 token 覆盖,
-品牌抓取(onboarding)属于后续迭代(见 §9)。
+The renderer merges these into the semantic tokens; fields left out fall back to
+the built-in defaults. The PR stage supports whole-group token overrides only;
+brand scraping (onboarding) belongs to a later iteration (see §9).
 
 ---
 
-## 5. 渲染器结构
+## 5. Renderer structure
 
-新增 `src/client/blocks/diagram.tsx`(+ 必要时 `diagram/` 子模块):
+Add `src/client/blocks/diagram.tsx` (+ a `diagram/` submodule when needed):
 
 ```
 src/client/blocks/diagram/
-  index.tsx          # DiagramNode 入口:variant/主题解析、复杂度守卫、a11y 外壳
-  layout.ts          # kind → 布局器(坐标透传或规则布局)
-  geometry.ts        # 正交连接器(elbow path r=8)、端口选择、桥接、边标签遮罩
-  theme.ts           # 语义 token 表 + 主题合并
-  kinds/             # 每个规则布局 kind 一个布局器(共 ~27,可分组)
+  index.tsx          # DiagramNode entry: variant/theme resolution, complexity guard, a11y shell
+  layout.ts          # kind → layouter (coordinate pass-through or rule layout)
+  geometry.ts        # orthogonal connectors (elbow path r=8), port selection, bridging, edge-label masks
+  theme.ts           # semantic token table + theme merge
+  kinds/             # one layouter per rule-layout kind (~27 in total, may be grouped)
 ```
 
-**接入点:**
-- `src/client/spec.ts` — 新增 `GenuiDiagram` / `GenuiDiagramNode` / `GenuiDiagramEdge` 接口,并入 `GenuiNode` 联合。
-- `src/client/blocks/render-node.tsx` — `case 'diagram': return <DiagramNode .../>`。
-- `src/client/guard.ts` — 新增 `maxDiagramNodes`(9)/`maxDiagramEdges`(12)/`maxDiagramZones`(3)等上限,
-  并在 `repairGenuiSpec` 里按 kind 钳制(未知 kind 降级为 `architecture` 或丢弃)。
-- `src/client/GenuiBlock.module.css` — diagram 容器样式(尺寸、边框、可访问焦点)。
-- `src/plugin/index.ts` 的 `GENUI_SECTION_TEXT` + `SKILL.md` — 教模型 `diagram` 语法。
+**Integration points:**
+- `src/client/spec.ts` — add the `GenuiDiagram` / `GenuiDiagramNode` /
+  `GenuiDiagramEdge` interfaces and fold them into the `GenuiNode` union.
+- `src/client/blocks/render-node.tsx` — `case 'diagram': return <DiagramNode .../>`.
+- `src/client/guard.ts` — add limits such as `maxDiagramNodes`(9) /
+  `maxDiagramEdges`(12) / `maxDiagramZones`(3), and clamp by kind inside
+  `repairGenuiSpec` (an unknown kind degrades to `architecture` or is dropped).
+- `src/client/GenuiBlock.module.css` — diagram container styling (size, border,
+  accessible focus).
+- `src/plugin/index.ts`'s `GENUI_SECTION_TEXT` + `SKILL.md` — teach the model
+  the `diagram` grammar.
 
-**可访问性:** 根 `<svg role="img" aria-label={title ?? kind} aria-describedby=...>`;title/desc 首子元素。
-
----
-
-## 6. 规范强制层(渲染时硬编码)
-
-与 diagram-design SKILL.md §5–7 对齐,全部在渲染器实现,模型无法绕过:
-
-1. **4px 网格**:所有坐标/尺寸/字号对齐到 4(布局器输出时取整;坐标模式把模型输入 round 到 4)。
-2. **正交连接器强制**:非共享轴连线一律 elbow path(`r=8`);斜线连接自动重路由。
-3. **端口选择**:垂直为主用顶/底端口,水平为主用左/右端口;同边多端口 fan(≥12px)。
-4. **边标签遮罩 + 6–10px 间隙**:标签永远不压线;遮罩不压节点(节点后画)。
-5. **桥接/跳线**:交叉时次要边加 hop arc;两条边永不同路径。
-6. **z-order**:bg → zones → arrows → labels → nodes。
-7. **焦点预算**:accent > `meta.focal` 时降级。
-8. **复杂度预算**:按 kind 钳制节点/边/深度,超出截断(守卫层)。
-9. **反模式内置**:无阴影、无发光、无 `rounded-2xl`(rx ≤ 8)、无 3 等宽卡、图例在底部条。
+**Accessibility:** root `<svg role="img" aria-label={title ?? kind} aria-describedby=...>`; title/desc as the first children.
 
 ---
 
-## 7. 教学(SKILL.md + GENUI_SECTION_TEXT)
+## 6. Spec enforcement layer (hard-coded at render time)
 
-- `GENUI_SECTION_TEXT` 增加一行:
-  `- diagram: {"type":"diagram","kind":"architecture","nodes":[...],"edges":[...]} — 编辑级品牌图(27 种类型,正交连接器,语义 token;替代 mermaid 的自动布局)`。
-- `SKILL.md` 增加 `diagram` 一节:kind 选择表、节点/边字段、布局模式、焦点规则、
-  复杂度预算、"何时用 diagram 而非 mermaid"、示例 spec。
-- 新增 skill 教学文件 `SKILL.diagram.md`(可选,作为 genui skill 的附属参考)。
+Aligned with diagram-design SKILL.md §5–7, all implemented in the renderer so the
+model cannot bypass them:
 
----
-
-## 8. 测试
-
-- `tests/genui-diagram.spec.tsx` — 渲染冒烟:每个 kind 至少一个最小 spec 渲染出 `<svg role="img">`。
-- `tests/genui-diagram-guard.spec.ts` — 未知 kind 降级;超预算截断;4px 取整;accent 降级。
-- `tests/genui-diagram-connector.spec.ts` — 正交路径、端口选择、边标签遮罩、桥接。
-- `tests/genui-diagram-a11y.spec.tsx` — aria-label/describedby、无重复 id。
-- 回归:现有 `genui.spec.tsx` 全绿(白名单扩展不破坏旧组件)。
-
----
-
-## 9. 范围与迭代顺序
-
-**v1(本次 PR):**
-- 核心渲染器 + 全部 27 kind 的**最小可用布局器**(坐标类完整;规则类用统一
-  自动布局器按 kind 参数化,保证每个 kind 能渲染)。
-- 内置默认皮肤(light/dark 跟随宿主)、语义 token、焦点规则、复杂度预算、正交连接器。
-- spec.ts / guard / render-node / SKILL.md / GENUI_SECTION_TEXT / 测试。
-
-**v2(后续):**
-- 每种 kind 的精细布局(swimlane 分栏、sequence lifeline 激活条、radar 网格等)。
-- 品牌抓取(onboarding)、编辑级 `editorial` 变体精修、`sketchy`/`terminal` 皮肤。
-- drawio/mermaid 导入重绘(对应 diagram-design 的 scripts/*.py)。
-
-**PR 可合入标准:** v1 全部完成;每个 kind 有最小 spec 渲染 + 测试;文档齐全;
-现有 0.8.3 功能零回归。
+1. **4px grid**: every coordinate/size/font size aligns to 4 (the layouter rounds
+   its output; coordinate mode rounds the model's input to 4).
+2. **Orthogonal connectors enforced**: any connection between non-shared axes uses
+   an elbow path (`r=8`); diagonal connections are re-routed automatically.
+3. **Port selection**: predominantly vertical edges use the top/bottom ports,
+   predominantly horizontal ones use the left/right ports; multiple ports on the
+   same side fan out (≥12px).
+4. **Edge-label mask + a 6–10px gap**: a label never sits on a line, and the mask
+   never covers a node (nodes are drawn after it).
+5. **Bridging/hops**: on a crossing, the secondary edge gets a hop arc; two edges
+   never share a path.
+6. **z-order**: bg → zones → arrows → labels → nodes.
+7. **Focal budget**: when accents exceed `meta.focal`, degrade.
+8. **Complexity budget**: clamp nodes/edges/depth by kind and truncate overflow
+   (guard layer).
+9. **Anti-patterns built in**: no shadows, no glow, no `rounded-2xl` (rx ≤ 8), no
+   three-equal-width cards, legend in a bottom strip.
 
 ---
 
-## 10. 参考
+## 7. Teaching (SKILL.md + GENUI_SECTION_TEXT)
 
-- diagram-design:[README](https://github.com/cathrynlavery/diagram-design)、
-  `skills/diagram-design/SKILL.md`(v2.4)、`references/style-guide.md`、各 `type-*.md`。
-- dsh-genui:当前 0.8.3,`src/client/spec.ts`、`blocks/render-node.tsx`、`guard.ts`。
-- 移植基线:本仓库 fork,分支 `feat/diagram-component`。
+- Add one line to `GENUI_SECTION_TEXT`:
+  `- diagram: {"type":"diagram","kind":"architecture","nodes":[...],"edges":[...]} — editorial-grade branded diagrams (27 types, orthogonal connectors, semantic tokens; replaces mermaid's automatic layout)`.
+- Add a `diagram` section to `SKILL.md`: the kind selection table, node/edge
+  fields, layout modes, focal rules, complexity budgets, "when to use diagram
+  instead of mermaid", and an example spec.
+- Add a new skill teaching file `SKILL.diagram.md` (optional, as a companion
+  reference for the genui skill).
+
+---
+
+## 8. Tests
+
+- `tests/genui-diagram.spec.tsx` — render smoke: at least one minimal spec per kind renders `<svg role="img">`.
+- `tests/genui-diagram-guard.spec.ts` — unknown kind degradation; over-budget truncation; 4px rounding; accent degradation.
+- `tests/genui-diagram-connector.spec.ts` — orthogonal paths, port selection, edge-label masks, bridging.
+- `tests/genui-diagram-a11y.spec.tsx` — aria-label/describedby, no duplicate ids.
+- Regression: the existing `genui.spec.tsx` stays fully green (the allowlist extension must not break older components).
+
+---
+
+## 9. Scope and iteration order
+
+**v1 (this PR):**
+- Core renderer + a **minimally viable layouter** for all 27 kinds (coordinate
+  kinds complete; rule kinds share one unified auto-layouter parameterized by
+  kind, guaranteeing every kind renders).
+- Built-in default skin (light/dark following the host), semantic tokens, focal
+  rules, complexity budgets, orthogonal connectors.
+- spec.ts / guard / render-node / SKILL.md / GENUI_SECTION_TEXT / tests.
+
+**v2 (later):**
+- Fine-grained layout per kind (swimlane columns, sequence lifeline activation
+  bars, radar grids, and so on).
+- Brand scraping (onboarding), polishing the editorial `editorial` variant, and
+  the `sketchy`/`terminal` skins.
+- drawio/mermaid import redraw (mirroring diagram-design's scripts/*.py).
+
+**PR merge criteria:** all of v1 complete; every kind has a minimal spec render +
+tests; documentation complete; zero regression in existing 0.8.3 functionality.
+
+---
+
+## 10. References
+
+- diagram-design: [README](https://github.com/cathrynlavery/diagram-design),
+  `skills/diagram-design/SKILL.md` (v2.4), `references/style-guide.md`, and the
+  per-type `type-*.md` files.
+- dsh-genui: currently 0.8.3, `src/client/spec.ts`, `blocks/render-node.tsx`, `guard.ts`.
+- Porting baseline: this repository's fork, branch `feat/diagram-component`.

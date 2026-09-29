@@ -4,8 +4,8 @@
 //    clickable-looking buttons were the top field complaint);
 // 2) textarea and quiz now support `action` (blur / answer selection);
 // 3) grouped radios record selections locally and a `submit` node collects
-//    ALL groups into ONE [genui-action] (the 交卷 pattern) instead of
-//    per-click round trips.
+//    ALL groups into ONE [genui-action] (the "hand in the paper" pattern),
+//    instead of one round trip per click.
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MarkdownText } from './markdown-labels.tsx'
@@ -29,7 +29,7 @@ function fenced(spec: unknown): string {
 describe.skipIf(!hasFenceRegistry)('v2.5: honest button affordance', () => {
   it('renders a button without action as DISABLED (display-only)', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
-      { type: 'button', label: '导出', tone: 'primary' },
+      { type: 'button', label: 'Export', tone: 'primary' },
     ] })} />)
     const button = container.querySelector('button')!
     expect(button.disabled).toBe(true)
@@ -39,7 +39,7 @@ describe.skipIf(!hasFenceRegistry)('v2.5: honest button affordance', () => {
     const { container } = render(
       <GenuiActionContext.Provider value={() => {}}>
         <MarkdownText text={fenced({ items: [
-          { type: 'button', label: '刷新', action: 'refresh' },
+          { type: 'button', label: 'Refresh', action: 'refresh' },
         ] })} />
       </GenuiActionContext.Provider>,
     )
@@ -49,7 +49,7 @@ describe.skipIf(!hasFenceRegistry)('v2.5: honest button affordance', () => {
 
   it('renders an action button as DISABLED without a provider (no signal path)', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
-      { type: 'button', label: '刷新', action: 'refresh' },
+      { type: 'button', label: 'Refresh', action: 'refresh' },
     ] })} />)
     const button = container.querySelector('button')!
     expect(button.disabled).toBe(true)
@@ -62,15 +62,15 @@ describe.skipIf(!hasFenceRegistry)('v2.5: textarea action', () => {
     const { container } = render(
       <GenuiActionContext.Provider value={(a, p) => actions.push([a, p])}>
         <MarkdownText text={fenced({ items: [
-          { type: 'textarea', label: '备注', action: 'save-note' },
+          { type: 'textarea', label: 'Notes', action: 'save-note' },
         ] })} />
       </GenuiActionContext.Provider>,
     )
     const ta = container.querySelector('textarea')!
-    fireEvent.change(ta, { target: { value: '已核对' } })
+    fireEvent.change(ta, { target: { value: 'checked' } })
     fireEvent.blur(ta)
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
-    expect(actions).toEqual([['save-note', { type: 'textarea', value: '已核对' }]])
+    expect(actions).toEqual([['save-note', { type: 'textarea', value: 'checked' }]])
   })
 
   it('does not fire without an action', () => {
@@ -78,7 +78,7 @@ describe.skipIf(!hasFenceRegistry)('v2.5: textarea action', () => {
     const { container } = render(
       <GenuiActionContext.Provider value={(a, p) => actions.push([a, p])}>
         <MarkdownText text={fenced({ items: [
-          { type: 'textarea', label: '备注' },
+          { type: 'textarea', label: 'Notes' },
         ] })} />
       </GenuiActionContext.Provider>,
     )
@@ -98,7 +98,7 @@ describe.skipIf(!hasFenceRegistry)('v2.5: quiz action', () => {
         <MarkdownText text={fenced({ items: [
           { type: 'quiz', question: '1+1=?', action: 'answer-q1', options: [
             { label: '1', correct: false },
-            { label: '2', correct: true, feedback: '对！' },
+            { label: '2', correct: true, feedback: 'Right!' },
           ] },
         ] })} />
       </GenuiActionContext.Provider>,
@@ -108,7 +108,7 @@ describe.skipIf(!hasFenceRegistry)('v2.5: quiz action', () => {
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(actions).toEqual([['answer-q1', { type: 'quiz', question: '1+1=?', answer: '2', correct: true }]])
     // local judging still works in place
-    expect(container.textContent).toContain('回答正确')
+    expect(container.textContent).toContain('Correct')
   })
 
   it('does not fire when the quiz has no action', () => {
@@ -128,12 +128,12 @@ describe.skipIf(!hasFenceRegistry)('v2.5: quiz action', () => {
   })
 })
 
-describe.skipIf(!hasFenceRegistry)('v2.5: submit 交卷 aggregation', () => {
+describe.skipIf(!hasFenceRegistry)('v2.5: submit aggregation', () => {
   const paper = {
     items: [
-      { type: 'radio', label: '第1题', group: 'q1', options: ['A', 'B'] },
-      { type: 'radio', label: '第2题', group: 'q2', options: ['C', 'D'] },
-      { type: 'submit', label: '交卷', action: 'grade', groups: ['q1', 'q2'] },
+      { type: 'radio', label: 'Question 1', group: 'q1', options: ['A', 'B'] },
+      { type: 'radio', label: 'Question 2', group: 'q2', options: ['C', 'D'] },
+      { type: 'submit', label: 'Hand in', action: 'grade', groups: ['q1', 'q2'] },
     ],
   }
 
@@ -152,13 +152,13 @@ describe.skipIf(!hasFenceRegistry)('v2.5: submit 交卷 aggregation', () => {
     const radioGroups = container.querySelectorAll('[role="radiogroup"]')
     fireEvent.click(radioGroups[0]!.querySelectorAll('input')[1]!)
     expect(submit.disabled).toBe(true)
-    expect(container.querySelector('[class*="submitHint"]')?.textContent).toContain('已选 1/2')
+    expect(container.querySelector('[class*="submitHint"]')?.textContent).toContain('1/2 answered')
 
     // answer q2 → enabled
     fireEvent.click(radioGroups[1]!.querySelectorAll('input')[1]!)
     expect(submit.disabled).toBe(false)
 
-    // 交卷: ONE action with both answers, no per-click spam
+    // Handing in: ONE action with both answers, no per-click spam.
     fireEvent.click(submit)
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(actions).toEqual([['grade', { type: 'submit', answers: { q1: 'B', q2: 'D' }, total: 2, answered: 2 }]])
@@ -183,8 +183,8 @@ describe.skipIf(!hasFenceRegistry)('v2.5: submit 交卷 aggregation', () => {
     const { container } = render(
       <GenuiActionContext.Provider value={(a, p) => actions.push([a, p])}>
         <MarkdownText text={fenced({ items: [
-          { type: 'radio', label: '第1题', group: 'q1', options: ['A', 'B'] },
-          { type: 'submit', label: '交卷', action: 'grade' },
+          { type: 'radio', label: 'Question 1', group: 'q1', options: ['A', 'B'] },
+          { type: 'submit', label: 'Hand in', action: 'grade' },
         ] })} />
       </GenuiActionContext.Provider>,
     )
@@ -202,13 +202,13 @@ describe.skipIf(!hasFenceRegistry)('v2.5: submit 交卷 aggregation', () => {
     const { container } = render(
       <GenuiActionContext.Provider value={(a, p) => actions.push([a, p])}>
         <MarkdownText text={fenced({ items: [
-          { type: 'radio', label: '主题', action: 'pick-theme', options: ['浅色', '深色'] },
+          { type: 'radio', label: 'Theme', action: 'pick-theme', options: ['Light', 'Dark'] },
         ] })} />
       </GenuiActionContext.Provider>,
     )
     fireEvent.click(container.querySelectorAll('[role="radiogroup"] input')[1]!)
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
-    expect(actions).toEqual([['pick-theme', { type: 'radio', value: '深色' }]])
+    expect(actions).toEqual([['pick-theme', { type: 'radio', value: 'Dark' }]])
   })
 })
 
@@ -219,7 +219,7 @@ describe.skipIf(!hasFenceRegistry)('v2.5: guard coverage', () => {
         { type: 'quiz', question: 'q', action: 'a', options: [{ label: 'x', correct: true }] },
         { type: 'textarea', label: 't', action: 'b' },
         { type: 'radio', label: 'r', group: 'g1', options: ['x'] },
-        { type: 'submit', label: '交卷', action: 'grade', groups: ['g1', 'g2'] },
+        { type: 'submit', label: 'Hand in', action: 'grade', groups: ['g1', 'g2'] },
       ],
     })
     expect(spec).not.toBeNull()
@@ -234,8 +234,8 @@ describe.skipIf(!hasFenceRegistry)('v2.5: guard coverage', () => {
   it('repair keeps a submit without action (local grading) and drops one without label', () => {
     const spec = repairGenuiSpec({ items: [
       { type: 'submit', groups: ['g1'] }, // no label → dropped
-      { type: 'submit', label: '交卷' }, // no action → KEPT (local grading needs no round trip)
-      { type: 'submit', label: '交卷', action: 'ok' },
+      { type: 'submit', label: 'Hand in' }, // no action → KEPT (local grading needs no round trip)
+      { type: 'submit', label: 'Hand in', action: 'ok' },
     ] })
     const items = spec!.items as Array<Record<string, unknown>>
     expect(items).toHaveLength(2)
@@ -249,9 +249,9 @@ describe.skipIf(!hasFenceRegistry)('v2.5: guard coverage', () => {
     expect(bad.errors.join('\n')).toContain("type 'submit' requires label")
     // A label-only submit is valid: when questions carry `answer` data the
     // click grades locally with zero round trip — no action needed.
-    const good = validateGenuiSpec({ items: [{ type: 'submit', label: '交卷' }] })
+    const good = validateGenuiSpec({ items: [{ type: 'submit', label: 'Hand in' }] })
     expect(good.ok).toBe(true)
-    const withAction = validateGenuiSpec({ items: [{ type: 'submit', label: '交卷', action: 'grade' }] })
+    const withAction = validateGenuiSpec({ items: [{ type: 'submit', label: 'Hand in', action: 'grade' }] })
     expect(withAction.ok).toBe(true)
   })
 })

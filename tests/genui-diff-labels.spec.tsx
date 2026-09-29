@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CodeNode, DiffNode, JsonNode } from '../src/client/blocks/advanced.tsx'
 import type { GenuiCode, GenuiDiff, GenuiJson } from '../src/client/spec.ts'
-import { diffBlockLabels } from '../src/client/primitive-labels.ts'
+import { diffBlockLabels, jsonTreeLabels } from '../src/client/primitive-labels.ts'
 
 const originalClipboard = navigator.clipboard
 
@@ -14,7 +14,7 @@ afterEach(() => {
 
 describe('GenUI diff labels', () => {
   it('supplies the shared code toolbar labels', () => {
-    expect(diffBlockLabels()).toMatchObject({ codeLabel: '代码', wrapLabel: '自动换行', unwrapLabel: '取消自动换行' })
+    expect(diffBlockLabels()).toMatchObject({ codeLabel: 'Code', wrapLabel: 'Wrap lines', unwrapLabel: 'Unwrap lines' })
   })
 
   it('renders the rc.1 diff contract with localized copy labels', () => {
@@ -27,8 +27,8 @@ describe('GenUI diff labels', () => {
 
     const diff = document.querySelector('[data-diff]')
     expect(diff).not.toBeNull()
-    expect(diff?.textContent).toContain('复制')
-    expect(diff?.textContent).toContain('1 个文件')
+    expect(diff?.textContent).toContain('Copy')
+    expect(diff?.textContent).toContain('1 files')
     expect(diff?.textContent).not.toContain('undefined')
   })
 
@@ -37,7 +37,7 @@ describe('GenUI diff labels', () => {
 
     render(<CodeNode node={node} />)
 
-    expect(document.querySelector('.md-code-block')?.textContent).toContain('复制')
+    expect(document.querySelector('.md-code-block')?.textContent).toContain('Copy')
     expect(document.querySelector('.md-code-block')?.textContent).not.toContain('undefined')
   })
 
@@ -49,7 +49,7 @@ describe('GenUI diff labels', () => {
     render(<CodeNode node={node} />)
 
     fireEvent.click(document.querySelector('.md-code-block button')!)
-    await waitFor(() => expect(document.querySelector('.md-code-block button')?.textContent).toBe('复制成功'))
+    await waitFor(() => expect(document.querySelector('.md-code-block button')?.textContent).toBe('Copied'))
     expect(writeText).toHaveBeenCalledWith('hello')
   })
 
@@ -62,7 +62,7 @@ describe('GenUI diff labels', () => {
     expect(row).not.toBeNull()
     fireEvent.mouseOver(row!)
     const button = document.querySelector('[data-json-copy-button]')
-    expect(button?.getAttribute('aria-label')).toContain('复制')
+    expect(button?.getAttribute('aria-label')).toContain(jsonTreeLabels().copyValue)
     expect(button?.getAttribute('aria-label')).not.toContain('undefined')
   })
 
@@ -77,7 +77,7 @@ describe('GenUI diff labels', () => {
     fireEvent.mouseOver(row)
     const button = document.querySelector<HTMLButtonElement>('[data-json-copy-button]')!
     fireEvent.click(button)
-    await waitFor(() => expect(button.getAttribute('aria-label')).toBe('已复制'))
+    await waitFor(() => expect(button.getAttribute('aria-label')).toBe(jsonTreeLabels().copied))
     expect(writeText).toHaveBeenCalledWith(JSON.stringify({ answer: 42 }, null, 2))
   })
 })

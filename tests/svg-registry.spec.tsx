@@ -31,7 +31,7 @@ describe('SVG registry integration', () => {
       const renderer = registry.get('svg')!
       const { getByRole } = render(<>{renderer('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"/>', 'svg')}</>)
       expect(getByRole('img')).not.toBeNull()
-      expect(getByRole('button', { name: '源码', exact: true })).not.toBeNull()
+      expect(getByRole('button', { name: 'Source', exact: true })).not.toBeNull()
     } finally { dispose() }
     expect(registry.size).toBe(0)
   })

@@ -1,10 +1,10 @@
 // Regression for the "Tetris table" fence body (issue #192).
 //
-// Real session sample (insight 主题调研选型, 2026-09-16): the model closed the
+// Real session sample (insight: topic research / model selection, 2026-09-16): the model closed the
 // `columns` array after the header cells and then wrote the row matrix as a
 // SIBLING array element that still carried the `"rows":` key —
 //
-//   "columns":["链路","用哪枚凭证","依据"],["rows":[[...],[...]]]
+//   "columns":["\u94fe\u8def","\u7528\u54ea\u679a\u51ed\u8bc1","\u4f9d\u636e"],["rows":[[...],[...]]]
 //
 // Both sides of the body are bracket-BALANCED, so neither the closer-appending
 // scan nor the client's partial parse can recover it: the whole fence stayed a
@@ -15,7 +15,7 @@ import { processGenuiSpec, isRenderableProcess, partialRepairGenuiSpec } from '.
 import { parsePartialGenuiSpec } from '../src/client/parse-partial.ts'
 
 /** The exact body captured from the session log. */
-const TETRIS_TABLE = "{\"gap\":12,\"items\":[{\"type\":\"table\",\"columns\":[\"链路\",\"用哪枚凭证\",\"依据\"],[\"rows\":[[\"话题搜索 search/statuses\",\"既有 1083114296\",\"只有它能调（你确认）\"],[\"show_batch（正文 + 媒体）\",\"2807558683\",\"正文逐字相同 + url_objects，严格超集 → 一次拿全，不必两次请求\"],[\"queryid / count_sp / 话题对象\",\"保持既有\",\"两枚都通，缩小变更面\"],[\"图片 CDN / 视频 CDN\",\"不需要凭证，但需非空 Referer\",\"实测：我们域名作 Referer → 图片 200、视频 206\"]]]}]}"
+const TETRIS_TABLE = "{\"gap\":12,\"items\":[{\"type\":\"table\",\"columns\":[\"\u94fe\u8def\",\"\u7528\u54ea\u679a\u51ed\u8bc1\",\"\u4f9d\u636e\"],[\"rows\":[[\"\u8bdd\u9898\u641c\u7d22 search/statuses\",\"\u65e2\u6709 1083114296\",\"\u53ea\u6709\u5b83\u80fd\u8c03\uff08\u4f60\u786e\u8ba4\uff09\"],[\"show_batch\uff08\u6b63\u6587 + \u5a92\u4f53\uff09\",\"2807558683\",\"\u6b63\u6587\u9010\u5b57\u76f8\u540c + url_objects\uff0c\u4e25\u683c\u8d85\u96c6 \u2192 \u4e00\u6b21\u62ff\u5168\uff0c\u4e0d\u5fc5\u4e24\u6b21\u8bf7\u6c42\"],[\"queryid / count_sp / \u8bdd\u9898\u5bf9\u8c61\",\"\u4fdd\u6301\u65e2\u6709\",\"\u4e24\u679a\u90fd\u901a\uff0c\u7f29\u5c0f\u53d8\u66f4\u9762\"],[\"\u56fe\u7247 CDN / \u89c6\u9891 CDN\",\"\u4e0d\u9700\u8981\u51ed\u8bc1\uff0c\u4f46\u9700\u975e\u7a7a Referer\",\"\u5b9e\u6d4b\uff1a\u6211\u4eec\u57df\u540d\u4f5c Referer \u2192 \u56fe\u7247 200\u3001\u89c6\u9891 206\"]]]}]}"
 
 describe('Tetris-shaped table columns (issue #192)', () => {
   it('is bracket-balanced yet does not parse — the reason the scan alone fails', () => {
@@ -35,9 +35,9 @@ describe('Tetris-shaped table columns (issue #192)', () => {
     const value = JSON.parse(completed!.text) as { items: Array<Record<string, unknown>> }
     const table = value.items[0]!
     expect(table.type).toBe('table')
-    expect(table.columns).toEqual(['链路', '用哪枚凭证', '依据'])
+    expect(table.columns).toEqual(['\u94fe\u8def', '\u7528\u54ea\u679a\u51ed\u8bc1', '\u4f9d\u636e'])
     expect(table.rows).toHaveLength(4)
-    expect(table.rows?.[0]).toEqual(['话题搜索 search/statuses', '既有 1083114296', '只有它能调（你确认）'])
+    expect(table.rows?.[0]).toEqual(['\u8bdd\u9898\u641c\u7d22 search/statuses', '\u65e2\u6709 1083114296', '\u53ea\u6709\u5b83\u80fd\u8c03\uff08\u4f60\u786e\u8ba4\uff09'])
     // The rewrite must leave legal JSON for the whole body, so the shared
     // pipeline can render it instead of degrading to a code block.
     expect(partialRepairGenuiSpec(processGenuiSpec(parsePartialGenuiSpec(completed!.text)!))).not.toBeNull()

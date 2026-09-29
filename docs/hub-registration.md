@@ -1,23 +1,23 @@
-# hub 收录登记建议（供 hub 维护者 triage 时复制）
+# hub listing proposal (for hub maintainers to copy during triage)
 
-按 dsh-external 规则，hub 不接受 PR：插件仓库由 hub 的 Agent Loop（每 2 小时同步）+ 管理员 triage 收录。
-本文件是给维护者的**登记建议**，同步循环把 dsh-genui 标记为「未分类」时，直接复制下面两段即可。
+Under the dsh-external rules the hub does not accept PRs: plugin repositories are listed by the hub's Agent Loop (synced every 2 hours) plus maintainer triage.
+This file is a **listing proposal** for maintainers — when the sync loop marks dsh-genui as "uncategorized", just copy the two blocks below.
 
-## catalog.source.json（repos 数组追加一行）
+## catalog.source.json (append one row to the repos array)
 
 ```json
-    { "name": "dsh-genui", "category": "plugin", "tags": ["web-ui", "generative-ui", "visualization", "interactive"], "note": "对话内生成式 UI：dsh-ui 围栏渲染为可交互组件（布局/图表/函数图/测验/3D/事件循环），渲染器经主仓 fence-registry 扩展点注册，插件 + 配套 skill 独立分发" }
+    { "name": "dsh-genui", "category": "plugin", "tags": ["web-ui", "generative-ui", "visualization", "interactive"], "note": "In-conversation generative UI: dsh-ui fences render as interactive components (layout/charts/function plots/quiz/3D/event loop); the renderer registers through the main repo's fence-registry extension point, and the plugin plus its companion skill ship independently" }
 ```
 
-## README.md（插件表格，按名字排序插在 dsh-gomoku 前）
+## README.md (plugin table, inserted before dsh-gomoku in name order)
 
 ```
-| [dsh-genui](https://github.com/omdsh-dev/dsh-genui) | bundle · cordis | 对话内生成式 UI：模型用 `dsh-ui` 围栏把可交互组件直接画进回答流（布局/图表/函数图/测验/3D/事件循环） — DSH 对话内生成式 UI 插件：dsh-ui 围栏渲染为可交互组件，渲染器经主仓 fence-registry 扩展点注册，插件 + 配套 skill 独立分发 | TS | 2026-08-09 |
+| [dsh-genui](https://github.com/omdsh-dev/dsh-genui) | bundle · cordis | In-conversation generative UI: the model draws interactive components straight into the answer stream with `dsh-ui` fences (layout/charts/function plots/quiz/3D/event loop) — a DSH in-conversation generative UI plugin: dsh-ui fences render as interactive components, the renderer registers through the main repo's fence-registry extension point, and the plugin plus its companion skill ship independently | TS | 2026-08-09 |
 ```
 
-管理器标注：package.json 声明 `dsh.bundle.patch`（`cordis.patch.yml`）→ 自动推导 `bundle · cordis`，无需人工覆盖。
-已打 topics：`dsh`、`dsh-plugin`、`marisa-plugin`（自动进 plugins.json 通道）、`web-ui`、`generative-ui`。
+Manager note: package.json declares `dsh.bundle.patch` (`cordis.patch.yml`) → `bundle · cordis` is inferred automatically, no manual override needed.
+Topics already set: `dsh`, `dsh-plugin`, `marisa-plugin` (enters the plugins.json channel automatically), `web-ui`, `generative-ui`.
 
-> 仓库位于 `omdsh-dev` 组织（公开），hub 同步循环可直接读取组织仓库。
+> The repository lives in the `omdsh-dev` organization (public), so the hub sync loop can read it directly.
 
-> 本地已就绪的完整 commit 在 `/tmp/dsh-hub`（`b79eb2a catalog: add dsh-genui`），管理员可 cherry-pick 或照抄。
+> A ready-made full commit is available locally at `/tmp/dsh-hub` (`b79eb2a catalog: add dsh-genui`); a maintainer can cherry-pick it or copy it verbatim.

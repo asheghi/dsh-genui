@@ -1,25 +1,25 @@
 /**
- * GenUI 节点诊断共享逻辑。
+ * Shared GenUI node diagnostic logic.
  * @module @changfenhuang/dsh-genui/plugin/genui-diagnostic
  */
 
 import type { GenuiProcessResult } from '../client/guard.ts'
 import { COMPONENT_SCHEMAS } from '../client/genui-runtime/schema.ts'
 
-/** 获取指定组件类型已知字段，保持提示顺序稳定。 */
+/** Return the known fields of a component type, keeping hint order stable. */
 function knownFieldsOf(type: string): string[] {
   const schema = COMPONENT_SCHEMAS[type]
   if (schema === undefined) return []
   return [...schema.required, ...Object.keys(schema.optional)]
 }
 
-/** 获取校验错误对应的节点路径。 */
+/** Return the node path a validation error refers to. */
 function nodePathOf(error: string): string | null {
   const match = /^(items\[\d+\](?:\.items\[\d+\])*)(?=:|\.items\[|$)/.exec(error)
   return match === null ? null : match[1]!
 }
 
-/** 根据节点路径读取模型声明的节点对象。 */
+/** Read the model-declared node object at a node path. */
 function declaredNodeAt(value: unknown, path: string): Record<string, unknown> | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const root = value as Record<string, unknown>
@@ -36,7 +36,7 @@ function declaredNodeAt(value: unknown, path: string): Record<string, unknown> |
     : undefined
 }
 
-/** 将校验错误转换为固定协议字段。 */
+/** Convert a validation error into fixed protocol fields. */
 function fieldSymptom(error: string, path: string, type: string): string {
   const rest = error.slice(path.length)
   const unknown = /^\.([A-Za-z0-9_-]+): unknown field\b/.exec(rest)
@@ -49,12 +49,12 @@ function fieldSymptom(error: string, path: string, type: string): string {
   return `error=validation_error\ndetail=${JSON.stringify(rest.replace(/^:\s*/, '').slice(0, 120))}`
 }
 
-/** 获取校验错误中声明的组件类型。 */
+/** Return the component type declared in a validation error. */
 function errorTypeOf(error: string): string | undefined {
   return /type '([^']+)'/.exec(error)?.[1]
 }
 
-/** 生成被丢弃节点的路径、类型和字段诊断。 */
+/** Build path, type, and field diagnostics for dropped nodes. */
 function droppedNodeDiagnosis(processed: GenuiProcessResult, raw: unknown): string[] {
   const byPath = new Map<string, string[]>()
   for (const error of processed.errors) {
@@ -82,7 +82,7 @@ function droppedNodeDiagnosis(processed: GenuiProcessResult, raw: unknown): stri
   return lines
 }
 
-/** 检查修复后的组件树中是否仍然存在指定类型的原生节点。 */
+/** Check whether the repaired component tree still contains a native node of the given type. */
 function repairedContainsType(node: unknown, type: string): boolean {
   if (Array.isArray(node)) return node.some(child => repairedContainsType(child, type))
   if (typeof node !== 'object' || node === null) return false
@@ -92,11 +92,11 @@ function repairedContainsType(node: unknown, type: string): boolean {
 }
 
 /**
- * 报告被丢弃的组件，并保留模型可以直接修正的字段信息。
+ * Report dropped components while preserving the field details the model can fix directly.
  *
- * @param processed - 节点处理结果。
- * @param raw - 节点处理使用的原始值。
- * @returns 可嵌入调用方协议的诊断字段；没有节点被丢弃时返回 undefined。
+ * @param processed - Node processing result.
+ * @param raw - Raw value used for node processing.
+ * @returns Diagnostic fields embeddable in the caller's protocol; undefined when no node was dropped.
  */
 export function droppedNodeFailure(processed: GenuiProcessResult, raw: unknown): string[] | undefined {
   if (!processed.errors.some(error => error.startsWith('repair dropped '))) return undefined

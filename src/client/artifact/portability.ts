@@ -6,7 +6,7 @@ import type { GenuiPortabilityReport, GenuiStandaloneAsset } from './types.ts'
 
 const ASSET_ORDER: GenuiStandaloneAsset[] = ['mermaid', 'three', 'echarts-core', 'echarts-full']
 
-/** 递归收集当前节点树依赖的引擎和媒体信息。 */
+/** Recursively collect the engines and media the current node tree depends on. */
 function scan(items: unknown[], report: GenuiPortabilityReport, assets: Set<GenuiStandaloneAsset>): void {
   for (const item of items) {
     if (typeof item !== 'object' || item === null || !('type' in item) || typeof item.type !== 'string') continue
@@ -35,7 +35,7 @@ function scan(items: unknown[], report: GenuiPortabilityReport, assets: Set<Genu
   }
 }
 
-/** 扫描嵌套 GenUI 节点，选择运行资源并列出独立页面限制。 */
+/** Scan nested GenUI nodes to select runtime assets and list standalone page limitations. */
 export function analyzeGenuiPortability(spec: GenuiSpec): GenuiPortabilityReport {
   const report: GenuiPortabilityReport = { requiredAssets: [], customTypes: [], externalMedia: [], hasModelActions: false }
   const assets = new Set<GenuiStandaloneAsset>()

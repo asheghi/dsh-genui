@@ -5,10 +5,10 @@ import { repairGenuiSpec } from '../src/client/guard.ts'
 
 afterEach(cleanup)
 
-const code = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><rect width="200" height="100" fill="#346"/><text x="10" y="50">模块图</text></svg>'
+const code = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><rect width="200" height="100" fill="#346"/><text x="10" y="50">Module diagram</text></svg>'
 
 function renderSvg(source = code) {
-  const spec = repairGenuiSpec({ items: [{ type: 'svg', code: source, title: '模块图' }] })
+  const spec = repairGenuiSpec({ items: [{ type: 'svg', code: source, title: 'Module diagram' }] })
   expect(spec).not.toBeNull()
   expect(spec!.items[0]?.type).toBe('svg')
   return render(<GenuiBlock spec={spec!} />)
@@ -49,7 +49,7 @@ describe('SVG content', () => {
 
   it('renders SVG as an isolated image, not host DOM markup', () => {
     const { getByRole, container } = renderSvg()
-    const image = getByRole('img', { name: '模块图' })
+    const image = getByRole('img', { name: 'Module diagram' })
     expect(image.getAttribute('src')).toBe(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(code)}`)
     expect(container.querySelector('svg text')).toBeNull()
   })
@@ -60,7 +60,7 @@ describe('SVG content', () => {
     // un-namespaced and used to be rejected 100% of the time.
     const source = '<svg viewBox="0 0 200 60"><rect width="200" height="60" fill="#111"/><text x="100" y="38" text-anchor="middle" fill="#fff">hello</text></svg>'
     const { getByRole, container } = renderSvg(source)
-    const src = getByRole('img', { name: '模块图' }).getAttribute('src') ?? ''
+    const src = getByRole('img', { name: 'Module diagram' }).getAttribute('src') ?? ''
     expect(src.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true)
     expect(decodeURIComponent(src)).toContain('xmlns="http://www.w3.org/2000/svg"')
     expect(container.querySelector('svg text')).toBeNull()

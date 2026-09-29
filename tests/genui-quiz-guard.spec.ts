@@ -5,20 +5,20 @@ describe('repairGenuiSpec: quiz option healing (issue #57)', () => {
   it('wraps string options and applies a label answer', () => {
     const raw = {
       type: 'quiz',
-      question: '下面哪个说法正确？',
-      options: ['选项A', '选项B', '选项C'],
-      answer: '选项B',
+      question: 'Which statement below is correct?',
+      options: ['Option A', 'Option B', 'Option C'],
+      answer: 'Option B',
     }
 
     expect(validateGenuiSpec(raw).ok).toBe(true)
     const quiz = repairGenuiSpec(raw)?.items[0]
     expect(quiz).toEqual({
       type: 'quiz',
-      question: '下面哪个说法正确？',
+      question: 'Which statement below is correct?',
       options: [
-        { label: '选项A' },
-        { label: '选项B', correct: true },
-        { label: '选项C' },
+        { label: 'Option A' },
+        { label: 'Option B', correct: true },
+        { label: 'Option C' },
       ],
     })
   })

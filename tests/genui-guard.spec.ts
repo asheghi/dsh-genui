@@ -46,7 +46,7 @@ describe('repairGenuiSpec: root shape', () => {
 
 describe('repairGenuiSpec: single-component roots', () => {
   it('wraps a bare component root into a col (documented fence vocabulary)', () => {
-    const spec = repairGenuiSpec({ type: 'callout', tone: 'info', title: '核心观察', content: '你好' })
+    const spec = repairGenuiSpec({ type: 'callout', tone: 'info', title: 'Key observation', content: 'Hello' })
     expect(spec).not.toBeNull()
     // The repaired GenuiSpec carries no `type` (root spec field set) — the
     // observable wrap effect is the items array holding the bare component.
@@ -119,16 +119,16 @@ describe('repairGenuiSpec: node-level healing', () => {
     // silently dropping every option (empty list = "options not rendered").
     const spec = repairGenuiSpec({ items: [
       { type: 'radio', label: 'Q', group: 'q', options: [
-        { label: '甲方案', description: '说明' },
-        { value: '乙方案' },
-        { title: '丙方案' },
+        { label: 'A plan', description: 'Description' },
+        { value: 'B plan' },
+        { title: 'C plan' },
         { x: 1 },
       ] },
-      { type: 'select', options: [{ label: '选项A' }, { label: '选项B' }] },
+      { type: 'select', options: [{ label: 'Option A' }, { label: 'Option B' }] },
     ] })
     const [radio, select] = spec!.items as Array<{ options?: string[] }>
-    expect(radio.options).toEqual(['甲方案', '乙方案', '丙方案', '{"x":1}'])
-    expect(select.options).toEqual(['选项A', '选项B'])
+    expect(radio.options).toEqual(['A plan', 'B plan', 'C plan', '{"x":1}'])
+    expect(select.options).toEqual(['Option A', 'Option B'])
   })
 
   it('clamps out-of-range numbers', () => {
@@ -244,15 +244,15 @@ describe('repairGenuiSpec: table / tabs tolerance (issue #42)', () => {
   it('flattens object columns and object-array rows (data alias) into a real table', () => {
     const spec = repairGenuiSpec({ items: [
       { type: 'table',
-        columns: [{ title: '名称', key: 'name' }, { title: '数量', dataIndex: 'count' }],
+        columns: [{ title: 'Name', key: 'name' }, { title: 'Count', dataIndex: 'count' }],
         data: [
-          { name: '苹果', count: 3, extra: 'x' },
-          { name: '梨', count: null },
+          { name: 'Apple', count: 3, extra: 'x' },
+          { name: 'Pear', count: null },
         ] },
     ] })
     const table = spec?.items[0] as { columns: string[], rows: Array<Array<string | number>> }
-    expect(table.columns).toEqual(['名称', '数量'])
-    expect(table.rows).toEqual([['苹果', 3], ['梨', '']])
+    expect(table.columns).toEqual(['Name', 'Count'])
+    expect(table.rows).toEqual([['Apple', 3], ['Pear', '']])
   })
 
   it('keys object rows by the first row when columns are plain strings', () => {
@@ -266,8 +266,8 @@ describe('repairGenuiSpec: table / tabs tolerance (issue #42)', () => {
   it('accepts tabs[].content as an items alias (array or single component)', () => {
     const spec = repairGenuiSpec({ items: [
       { type: 'tabs', tabs: [
-        { label: '一', content: [{ type: 'text', content: 'a' }, { type: 'badge', label: 'b' }] },
-        { label: '二', content: { type: 'text', content: 'c' } },
+        { label: 'Tab one', content: [{ type: 'text', content: 'a' }, { type: 'badge', label: 'b' }] },
+        { label: 'Tab two', content: { type: 'text', content: 'c' } },
       ] },
     ] })
     const tabs = spec?.items[0] as { tabs: Array<{ label: string, items: unknown[] }> }

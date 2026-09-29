@@ -46,14 +46,14 @@ describe('GenUI table overflow', () => {
 
   it.skipIf(!hasFenceRegistry)('wraps the table in a scroll container (DOM structure)', () => {
     const { container } = render(<MarkdownText text={fenced({
-      title: 'AS vs Subagent Tree 对比',
+      title: 'AS vs Subagent Tree comparison',
       items: [
         {
           type: 'table',
           columns: ['Yet Another Subagent', 'Subagent Tree'],
           rows: [
-            ['把官方 subagent 升级成可配置版', '要复制源码进 monorepo + git apply 补丁（5 个文件）'],
-            ['实时显示子代理的 token 和工具调用', '只有运行/完成状态'],
+            ['Upgrade the official subagent into a configurable build', 'Copy the source into the monorepo + git apply a patch (5 files)'],
+            ['Show live subagent tokens and tool calls', 'Running/done status only'],
           ],
         },
       ],

@@ -86,7 +86,7 @@ describe('GenuiPanel dock', () => {
     direct('s1', { title: 'T', items: [text('x')] })
     const { container } = renderPanel()
     expect(container.querySelector('[data-genui-panel]')).not.toBeNull()
-    const close = container.querySelector<HTMLButtonElement>('[aria-label="关闭面板"]')
+    const close = container.querySelector<HTMLButtonElement>('[aria-label="Close panel"]')
     expect(close).not.toBeNull()
     fireEvent.click(close!)
     // Same semantics as `/panel clear`: snapshot folds to null in memory,
@@ -106,9 +106,9 @@ describe('GenuiPanel dock', () => {
     direct('s1', { title: 'T', items: [text('x')] })
     const { container } = renderPanel()
     // collapsed: no handle
-    expect(container.querySelector('[role="separator"][aria-label="调整面板高度"]')).toBeNull()
+    expect(container.querySelector('[role="separator"][aria-label="Resize panel height"]')).toBeNull()
     fireEvent.click(container.querySelector('[aria-expanded="false"]')!)
-    const handle = container.querySelector('[role="separator"][aria-label="调整面板高度"]')!
+    const handle = container.querySelector('[role="separator"][aria-label="Resize panel height"]')!
     expect(handle).not.toBeNull()
     const body = container.querySelector('[data-genui-panel-body]') as HTMLElement | null
     expect(body).not.toBeNull()
@@ -133,7 +133,7 @@ describe('GenuiPanel dock', () => {
     direct('s1', { title: 'T', items: [text('x')] })
     const { container, unmount } = renderPanel()
     fireEvent.click(container.querySelector('[aria-expanded="false"]')!)
-    const handle = container.querySelector('[role="separator"][aria-label="调整面板高度"]')!
+    const handle = container.querySelector('[role="separator"][aria-label="Resize panel height"]')!
     const body = container.querySelector('[data-genui-panel-body]') as HTMLElement | null
     fireEvent.pointerDown(handle, { clientY: 200, pointerId: 7 })
     fireEvent.pointerMove(handle, { clientY: 100, pointerId: 7 })
@@ -145,31 +145,31 @@ describe('GenuiPanel dock', () => {
   })
 
   it('renders collapsed with the title, and reveals content on expand (per session)', () => {
-    direct('s1', { title: '面板 A', items: [text('内容 A')] })
-    direct('s2', { title: '面板 B', items: [text('内容 B')] })
+    direct('s1', { title: 'Panel A', items: [text('Body A')] })
+    direct('s2', { title: 'Panel B', items: [text('Body B')] })
     const { container } = renderPanel('s1')
     expect(container.querySelector('[data-genui-panel]')).not.toBeNull()
     // collapsed by default: title visible, content hidden
-    expect(screen.getByText('面板 A')).toBeTruthy()
-    expect(screen.queryByText('内容 A')).toBeNull()
-    expect(screen.queryByText('内容 B')).toBeNull()
+    expect(screen.getByText('Panel A')).toBeTruthy()
+    expect(screen.queryByText('Body A')).toBeNull()
+    expect(screen.queryByText('Body B')).toBeNull()
     // expand: content appears, other sessions' still hidden
     fireEvent.click(container.querySelector('[aria-expanded="false"]')!)
-    expect(screen.getByText('内容 A')).toBeTruthy()
-    expect(screen.queryByText('内容 B')).toBeNull()
+    expect(screen.getByText('Body A')).toBeTruthy()
+    expect(screen.queryByText('Body B')).toBeNull()
     // collapse again
     fireEvent.click(container.querySelector('[aria-expanded="true"]')!)
-    expect(screen.queryByText('内容 A')).toBeNull()
+    expect(screen.queryByText('Body A')).toBeNull()
   })
 
   it('updates in place when a new spec is published (expanded)', () => {
     const { container } = renderPanel()
-    act(() => { direct('s1', { title: 'T', items: [text('第一版')] }) })
+    act(() => { direct('s1', { title: 'T', items: [text('first revision')] }) })
     fireEvent.click(container.querySelector('[aria-expanded="false"]')!)
-    expect(screen.getByText('第一版')).toBeTruthy()
-    act(() => { direct('s1', { title: 'T', items: [text('第二版')] }) })
-    expect(screen.queryByText('第一版')).toBeNull()
-    expect(screen.getByText('第二版')).toBeTruthy()
+    expect(screen.getByText('first revision')).toBeTruthy()
+    act(() => { direct('s1', { title: 'T', items: [text('second revision')] }) })
+    expect(screen.queryByText('first revision')).toBeNull()
+    expect(screen.getByText('second revision')).toBeTruthy()
     expect(container.querySelectorAll('[data-genui-panel]')).toHaveLength(1)
   })
 
@@ -178,11 +178,11 @@ describe('GenuiPanel dock', () => {
     const sendGenuiAction = vi.fn()
     direct('s1', {
       title: 'T',
-      items: [{ type: 'button', label: '刷新', action: 'refresh' }],
+      items: [{ type: 'button', label: 'Refresh', action: 'refresh' }],
     })
     const { container } = renderPanel('s1', sendGenuiAction)
     fireEvent.click(container.querySelector('[aria-expanded="false"]')!) // expand first
-    fireEvent.click(screen.getByText('刷新'))
+    fireEvent.click(screen.getByText('Refresh'))
     // Discrete gestures deliver at once (#178); only slider drags wait out
     // the debounce window.
     expect(sendGenuiAction).toHaveBeenCalledTimes(1)
@@ -216,10 +216,10 @@ describe('GenuiToolView publishes to the panel store', () => {
   }
 
   it('publishes the repaired spec for the session on a settled result', () => {
-    render(<GenuiToolView {...props(resultBlock({ items: [text('面板内容')] }))} />)
+    render(<GenuiToolView {...props(resultBlock({ items: [text('Panel body')] }))} />)
     const published = getPanelSpec('s1')
     expect(published).not.toBeNull()
-    expect(published!.items.some(n => n.type === 'text' && 'content' in n && n.content === '面板内容')).toBe(true)
+    expect(published!.items.some(n => n.type === 'text' && 'content' in n && n.content === 'Panel body')).toBe(true)
     // other sessions untouched
     expect(getPanelSpec('s2')).toBeNull()
   })
@@ -237,7 +237,7 @@ describe('panel-only fences', () => {
   })
 
   it('publishes a panel:true fence from a settled source context and renders nothing', () => {
-    const node = renderGenuiFence('{"panel":true,"title":"面板","items":[{"type":"text","content":"面板内容"}]}', 0, ctx(10))
+    const node = renderGenuiFence('{"panel":true,"title":"Panel","items":[{"type":"text","content":"Panel body"}]}', 0, ctx(10))
     // The keyed publisher element renders nothing into the message flow…
     const { container } = render(node as never)
     expect(container.textContent).toBe('')
@@ -245,12 +245,12 @@ describe('panel-only fences', () => {
     const published = getPanelSpec('s1')
     expect(published).not.toBeNull()
     expect(published!.panel).toBe(true)
-    expect(published!.items.some(n => n.type === 'text' && 'content' in n && n.content === '面板内容')).toBe(true)
+    expect(published!.items.some(n => n.type === 'text' && 'content' in n && n.content === 'Panel body')).toBe(true)
   })
 
   it('keeps ordinary fences rendering inline without touching the panel', () => {
     clearSessionPanel('s1')
-    const node = renderGenuiFence('{"title":"普通","items":[{"type":"text","content":"正文"}]}', 0, ctx(10))
+    const node = renderGenuiFence('{"title":"Ordinary","items":[{"type":"text","content":"body text"}]}', 0, ctx(10))
     expect(node).not.toBeNull()
     expect(getPanelSpec('s1')).toBeNull()
   })
@@ -283,8 +283,8 @@ describe('panel operation model (real order, no Infinity)', () => {
   })
 
   it('rejects an older seq publish after a newer one', () => {
-    const newer = { items: [text('新')] }
-    const older = { items: [text('旧')] }
+    const newer = { items: [text('new')] }
+    const older = { items: [text('old')] }
     direct('s1', newer, 100)
     direct('s1', older, 50) // replay of an older tool result
     expect(getPanelSpec('s1')).toBe(newer)
@@ -374,31 +374,31 @@ describe('panel operation model (real order, no Infinity)', () => {
   })
 
   it('restores the panel from localStorage after memory teardown (reload)', () => {
-    direct('s1', { items: [text('持久')] }, 9)
+    direct('s1', { items: [text('persisted')] }, 9)
     clearSessionPanel('s1') // dock unmount on session prune
     // first read after teardown re-hydrates from storage
-    expect(getPanelSpec('s1')!.items).toEqual([text('持久')])
+    expect(getPanelSpec('s1')!.items).toEqual([text('persisted')])
     // old replays stay dead after hydration
-    applyPanelOperation('s1', { sourceId: 'old:3', order: [3, 0, 0], mode: 'replace', spec: { items: [text('旧')] } })
-    expect(getPanelSpec('s1')!.items).toEqual([text('持久')])
+    applyPanelOperation('s1', { sourceId: 'old:3', order: [3, 0, 0], mode: 'replace', spec: { items: [text('old')] } })
+    expect(getPanelSpec('s1')!.items).toEqual([text('persisted')])
     // a genuinely newer op folds on top of the restored snapshot
-    applyPanelOperation('s1', { sourceId: 'new:10', order: [10, 0, 0], mode: 'replace', spec: { items: [text('新')] } })
-    expect(getPanelSpec('s1')!.items).toEqual([text('新')])
+    applyPanelOperation('s1', { sourceId: 'new:10', order: [10, 0, 0], mode: 'replace', spec: { items: [text('new')] } })
+    expect(getPanelSpec('s1')!.items).toEqual([text('new')])
   })
 
   it('warns once per source when a barrier rejects an op (issue #4 diagnostics)', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
-      direct('s1', { items: [text('持久')] }, 3000)
+      direct('s1', { items: [text('persisted')] }, 3000)
       clearSessionPanel('s1') // reload: memory gone, storage keeps maxSeenSeq
-      const old = { items: [text('旧')] }
+      const old = { items: [text('old')] }
       applyPanelOperation('s1', { sourceId: 'old:2000', order: [2000, 0, 0], mode: 'replace', spec: old })
-      expect(getPanelSpec('s1')!.items).toEqual([text('持久')]) // replay dead
+      expect(getPanelSpec('s1')!.items).toEqual([text('persisted')]) // replay dead
       // replay of the same source stays silent (one diagnostic per source)
       applyPanelOperation('s1', { sourceId: 'old:2000', order: [2000, 0, 0], mode: 'replace', spec: old })
       const calls = warn.mock.calls.filter(([m]) => String(m).includes('[genui]'))
       expect(calls).toHaveLength(1)
-      expect(String(calls[0]![0])).toContain('屏障')
+      expect(String(calls[0]![0])).toContain('replay barrier')
       expect(String(calls[0]![0])).toContain('2000')
     } finally {
       warn.mockRestore()
@@ -497,7 +497,7 @@ describe('panel local override (barrier semantics)', () => {
   })
 
   it('setting the default panel overrides old ops; later ops replace or merge into it', () => {
-    const def = { title: '默认', items: [text('D')] }
+    const def = { title: 'Default', items: [text('D')] }
     applyPanelOperation('s1', { sourceId: 'a:10', order: [10, 0, 0], mode: 'replace', spec: aSpec })
     setLocalPanel('s1', def) // /panel at maxSeen = 10
     expect(getPanelSpec('s1')).toBe(def)
@@ -522,28 +522,28 @@ describe('settled-fence publisher (host fence-source contract)', () => {
   it('appends two messages whose local fence keys are both 0 (each once)', () => {
     const fn = vi.fn()
     const unsub = subscribePanel(fn)
-    render(renderGenuiFence(appendBody('第一轮'), 0, ctx(10)) as never)
-    render(renderGenuiFence(appendBody('第二轮'), 0, ctx(11)) as never)
+    render(renderGenuiFence(appendBody('round one'), 0, ctx(10)) as never)
+    render(renderGenuiFence(appendBody('round two'), 0, ctx(11)) as never)
     const spec = getPanelSpec('s1')!
-    expect(spec.items.map(n => (n as { content: string }).content)).toEqual(['第一轮', '第二轮'])
+    expect(spec.items.map(n => (n as { content: string }).content)).toEqual(['round one', 'round two'])
     expect(fn).toHaveBeenCalledTimes(2)
     unsub()
   })
 
   it('identical content in two messages still appends twice (identity, not hash)', () => {
-    render(renderGenuiFence(appendBody('相同'), 0, ctx(10)) as never)
-    render(renderGenuiFence(appendBody('相同'), 0, ctx(11)) as never)
+    render(renderGenuiFence(appendBody('same'), 0, ctx(10)) as never)
+    render(renderGenuiFence(appendBody('same'), 0, ctx(11)) as never)
     expect(getPanelSpec('s1')!.items).toHaveLength(2)
   })
 
   it('two fences in one message fold by text-block/fence order, not effect order', () => {
-    const a = JSON.stringify({ panel: true, append: true, items: [{ type: 'text', content: '块A' }] })
-    const b = JSON.stringify({ panel: true, append: true, items: [{ type: 'text', content: '块B' }] })
+    const a = JSON.stringify({ panel: true, append: true, items: [{ type: 'text', content: 'block A' }] })
+    const b = JSON.stringify({ panel: true, append: true, items: [{ type: 'text', content: 'block B' }] })
     // Second block rendered first (out-of-order mount), first block second.
     render(renderGenuiFence(b, 1, ctx(10, 1, 0)) as never)
     render(renderGenuiFence(a, 0, ctx(10, 0, 0)) as never)
     const spec = getPanelSpec('s1')!
-    expect(spec.items.map(n => (n as { content: string }).content)).toEqual(['块A', '块B'])
+    expect(spec.items.map(n => (n as { content: string }).content)).toEqual(['block A', 'block B'])
   })
 
   it('re-rendering the same settled fence (same source) folds and notifies once', () => {
@@ -568,20 +568,20 @@ describe('settled-fence publisher (host fence-source contract)', () => {
   })
 
   it('a replace after earlier appends resets the panel', () => {
-    render(renderGenuiFence(appendBody('旧1'), 0, ctx(10)) as never)
-    render(renderGenuiFence(appendBody('旧2'), 0, ctx(11)) as never)
-    render(renderGenuiFence(replaceBody('新面板'), 0, ctx(12)) as never)
+    render(renderGenuiFence(appendBody('old 1'), 0, ctx(10)) as never)
+    render(renderGenuiFence(appendBody('old 2'), 0, ctx(11)) as never)
+    render(renderGenuiFence(replaceBody('new panel'), 0, ctx(12)) as never)
     const spec = getPanelSpec('s1')!
-    expect(spec.items.map(n => (n as { content: string }).content)).toEqual(['新面板'])
+    expect(spec.items.map(n => (n as { content: string }).content)).toEqual(['new panel'])
   })
 
   it('streaming (no source) publishes nothing; settled publishes once', () => {
     const fn = vi.fn()
     const unsub = subscribePanel(fn)
-    render(renderGenuiFence(replaceBody('流式'), 0, { sessionId: 's1' }) as never) // context without source
+    render(renderGenuiFence(replaceBody('streaming'), 0, { sessionId: 's1' }) as never) // context without source
     expect(getPanelSpec('s1')).toBeNull()
     expect(fn).not.toHaveBeenCalled()
-    render(renderGenuiFence(replaceBody('定稿'), 0, ctx(10)) as never)
+    render(renderGenuiFence(replaceBody('final'), 0, ctx(10)) as never)
     expect(getPanelSpec('s1')).not.toBeNull()
     unsub()
   })

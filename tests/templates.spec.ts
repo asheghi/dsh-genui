@@ -1,7 +1,8 @@
 /**
- * templates.spec.ts — 模板中心数据契约：
- * 每条模板的 demo 必须通过 validateGenuiSpec（与渲染器同一守卫），
- * 规模在 GENUI_LIMITS 内，instruction 非空且含「dsh-ui」关键词。
+ * templates.spec.ts — template-center data contract:
+ * every template's demo must pass validateGenuiSpec (the same guard the
+ * renderer uses), stay within GENUI_LIMITS, and carry a non-empty
+ * instruction containing the "dsh-ui" keyword.
  */
 import { describe, expect, it } from 'vitest'
 import { genuiTemplates } from '../src/client/templates.ts'
@@ -10,8 +11,8 @@ import { GENUI_LIMITS } from '../src/client/genui-runtime/index.ts'
 
 const GENUI_TEMPLATES = genuiTemplates()
 
-describe('模板中心数据契约', () => {
-  it('每条 demo 通过渲染器守卫校验', () => {
+describe('template center data contract', () => {
+  it('every demo passes the renderer guard', () => {
     const problems: string[] = []
     for (const tpl of GENUI_TEMPLATES) {
       const v = validateGenuiSpec(tpl.demo)
@@ -20,17 +21,17 @@ describe('模板中心数据契约', () => {
     expect(problems).toEqual([])
   })
 
-  it('每条 demo 规模在限制内（≤200 节点、≤8 层）', () => {
+  it('every demo stays within the limits (≤200 nodes, ≤8 levels)', () => {
     for (const tpl of GENUI_TEMPLATES) {
       const count = countGenuiNodes(tpl.demo)
-      expect(count, `${tpl.id}: ${count} 节点`).toBeLessThanOrEqual(GENUI_LIMITS.maxNodes)
+      expect(count, `${tpl.id}: ${count} nodes`).toBeLessThanOrEqual(GENUI_LIMITS.maxNodes)
     }
   })
 
-  it('id 唯一 + instruction 有效 + name/description 非空', () => {
+  it('unique ids + valid instructions + non-empty name/description', () => {
     const ids = new Set<string>()
     for (const tpl of GENUI_TEMPLATES) {
-      expect(ids.has(tpl.id), `重复 id: ${tpl.id}`).toBe(false)
+      expect(ids.has(tpl.id), `duplicate id: ${tpl.id}`).toBe(false)
       ids.add(tpl.id)
       expect(tpl.instruction.trim().length).toBeGreaterThan(10)
       expect(tpl.instruction).toContain('dsh-ui')
@@ -40,11 +41,11 @@ describe('模板中心数据契约', () => {
     expect(GENUI_TEMPLATES.length).toBeGreaterThanOrEqual(10)
   })
 
-  it('覆盖主要类别', () => {
+  it('covers the main categories', () => {
     const categories = new Set<string>(GENUI_TEMPLATES.map(t => t.category))
     // Stable, locale-independent category ids (display names live in i18n).
     for (const expected of ['dashboard', 'data', 'flow', 'chart', 'interactive', 'quiz', 'advanced']) {
-      expect(categories.has(expected), `缺类别: ${expected}`).toBe(true)
+      expect(categories.has(expected), `missing category: ${expected}`).toBe(true)
     }
   })
 })

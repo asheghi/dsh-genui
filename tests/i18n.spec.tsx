@@ -1,25 +1,33 @@
 // @vitest-environment jsdom
 /**
  * i18n contract: dictionary completeness, locale resolution, the `t()` lookup
- * chain, and the fact that real UI surfaces actually render in the active
- * language (and re-render when it switches).
+ * chain, host-bridge registration, and the fact that real UI surfaces render
+ * in the active language.
  *
- * The rest of the suite runs pinned to `zh` (see tests/setup.ts), which keeps
- * the pre-extraction Chinese wording under test. This file owns English and
- * the switching behaviour, and restores `zh` afterwards so suite order can
- * never leak a locale.
+ * This fork ships English only: `en` is the single shipped locale, the only
+ * dictionary `dictOf` hands out, and the fallback. The suite is pinned to
+ * `en` (see tests/setup.ts); this file owns the switching behaviour — an
+ * unshipped tag leaves the active locale untouched — and restores `en`
+ * afterwards so test order can never leak a locale.
+ *
+ * A mirroring dictionary keeps the completeness checks meaningful for a
+ * locale that is not `en`: identical keys, identical placeholders, the shape
+ * any future translation must satisfy.
  */
 import { cleanup, act, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EN } from '../src/client/i18n/en.ts'
-import { ZH } from '../src/client/i18n/zh.ts'
 import {
+  bridgeHostLocale,
   detectLocale,
+  dictOf,
   FALLBACK_LOCALE,
+  GENUI_LOCALE_NS,
   getLocale,
   LOCALE_IDS,
   normalizeLocale,
   setLocale,
+  subscribeLocale,
   t,
 } from '../src/client/i18n/index.ts'
 import { genuiTemplates, TEMPLATE_CATEGORIES } from '../src/client/templates.ts'
@@ -28,64 +36,86 @@ import { ACHIEVEMENTS, buildAchievementsSpec, emptyState } from '../src/client/a
 import { TemplateDrawer } from '../src/client/TemplateDrawer.tsx'
 import { validateGenuiSpec } from '../src/client/guard.ts'
 
+/** `{name}` placeholders of a template, sorted, for cross-dictionary comparison. */
+const placeholders = (s: string): string[] => (s.match(/\{(\w+)\}/g) ?? []).sort()
+
+/**
+ * A dictionary mirroring the English key set and placeholders, prefixed so a
+ * value can never be mistaken for the English one. It is never shipped and
+ * never handed back by the public API.
+ */
+const MIRROR: Record<string, string> = Object.fromEntries(
+  Object.entries(EN).map(([key, value]) => [key, `mirror ${key} ${value}`]),
+)
+
 afterEach(() => {
   cleanup()
   // Restore the suite-wide pin so test order cannot leak a locale.
-  setLocale('zh')
+  setLocale('en')
 })
 
 describe('dictionary completeness', () => {
-  it('zh covers exactly the English key set', () => {
-    const en = Object.keys(EN).sort()
-    const zh = Object.keys(ZH).sort()
-    expect(zh).toEqual(en)
+  it('ships English as the only locale', () => {
+    expect(LOCALE_IDS).toEqual(['en'])
+    expect(FALLBACK_LOCALE).toBe('en')
+  })
+
+  it('dictOf returns the English dictionary for the shipped locale', () => {
+    expect(dictOf('en')).toBe(EN)
+    expect(Object.keys(dictOf('en'))).toEqual(Object.keys(EN))
   })
 
   it('no dictionary entry is empty', () => {
     for (const id of LOCALE_IDS) {
-      const dict = id === 'en' ? EN : ZH
-      for (const [key, value] of Object.entries(dict)) {
+      for (const [key, value] of Object.entries(dictOf(id))) {
         expect(String(value).trim(), `${id}:${key} is empty`).not.toBe('')
       }
     }
   })
 
-  it('placeholders match between the two dictionaries', () => {
-    const placeholders = (s: string): string[] => (s.match(/\{(\w+)\}/g) ?? []).sort()
+  it('every English entry is a non-blank string', () => {
+    for (const [key, value] of Object.entries(EN)) {
+      expect(typeof value, `${key} is not a string`).toBe('string')
+      expect(value.trim(), `${key} is blank`).not.toBe('')
+    }
+  })
+
+  it('a mirroring dictionary agrees with English on the key set and placeholders', () => {
+    expect(Object.keys(MIRROR).sort()).toEqual(Object.keys(EN).sort())
     for (const key of Object.keys(EN) as Array<keyof typeof EN>) {
-      expect(placeholders(ZH[key]), `placeholder mismatch on ${key}`)
+      expect(placeholders(MIRROR[key]!), `placeholder mismatch on ${key}`)
         .toEqual(placeholders(EN[key]))
     }
   })
 
-  it('every achievement id has a name and description in both languages', () => {
+  it('every achievement id has a name and description', () => {
     for (const a of ACHIEVEMENTS) {
       for (const suffix of ['name', 'desc'] as const) {
         const key = `ach.${a.id}.${suffix}` as keyof typeof EN
-        expect(EN[key], `missing en ${key}`).toBeTruthy()
-        expect(ZH[key], `missing zh ${key}`).toBeTruthy()
+        expect(EN[key], `missing ${key}`).toBeTruthy()
       }
     }
   })
 
-  it('every template category has a label in both languages', () => {
+  it('every template category has a label', () => {
     for (const c of [...TEMPLATE_CATEGORIES, 'all']) {
       const key = `tpl.category.${c}` as keyof typeof EN
-      expect(EN[key], `missing en ${key}`).toBeTruthy()
-      expect(ZH[key], `missing zh ${key}`).toBeTruthy()
+      expect(EN[key], `missing ${key}`).toBeTruthy()
     }
   })
 })
 
 describe('locale resolution', () => {
-  it('normalizes region and script subtags onto a shipped locale', () => {
-    expect(normalizeLocale('zh-CN')).toBe('zh')
-    expect(normalizeLocale('zh-Hant-TW')).toBe('zh')
+  it('normalizes region and script subtags onto the only shipped locale', () => {
+    expect(normalizeLocale('en')).toBe('en')
     expect(normalizeLocale('en-GB')).toBe('en')
     expect(normalizeLocale('EN_us')).toBe('en')
   })
 
-  it('rejects unshipped or malformed tags', () => {
+  it('rejects every unshipped language, including Chinese tags', () => {
+    expect(normalizeLocale('zh')).toBeUndefined()
+    expect(normalizeLocale('zh-CN')).toBeUndefined()
+    expect(normalizeLocale('zh-Hant-TW')).toBeUndefined()
     expect(normalizeLocale('fr')).toBeUndefined()
     expect(normalizeLocale('')).toBeUndefined()
     expect(normalizeLocale(undefined)).toBeUndefined()
@@ -99,18 +129,32 @@ describe('locale resolution', () => {
   })
 
   it('ignores an unknown tag instead of blanking the UI', () => {
+    setLocale('en')
     setLocale('zh')
+    expect(getLocale()).toBe('en')
     setLocale('fr')
-    expect(getLocale()).toBe('zh')
+    expect(getLocale()).toBe('en')
+  })
+
+  it('does not notify subscribers for an unknown or already-active tag', () => {
+    setLocale('en')
+    const seen = vi.fn()
+    const unsubscribe = subscribeLocale(seen)
+    try {
+      setLocale('en') // already active → no churn
+      setLocale('zh') // unshipped → ignored
+      expect(seen).not.toHaveBeenCalled()
+    } finally {
+      unsubscribe()
+    }
   })
 })
 
 describe('t() lookup chain', () => {
-  it('returns the active language', () => {
+  it('resolves English values', () => {
     setLocale('en')
     expect(t('panel.badge')).toBe('Panel')
-    setLocale('zh')
-    expect(t('panel.badge')).toBe('面板')
+    expect(t('panel.badge')).toBe(EN['panel.badge'])
   })
 
   it('interpolates named params', () => {
@@ -130,17 +174,77 @@ describe('t() lookup chain', () => {
   })
 })
 
+describe('host locale bridge', () => {
+  /** Minimal host locale service double. */
+  function hostLocale(active: string) {
+    return {
+      active,
+      registrations: [] as Array<[string, string, Record<string, string>]>,
+      syncs: [] as Array<() => void>,
+      getLocale() {
+        return { active: this.active }
+      },
+      subscribe(fn: () => void) {
+        this.syncs.push(fn)
+        return () => {
+          this.syncs = this.syncs.filter(candidate => candidate !== fn)
+        }
+      },
+      register(ns: string, locale: string, dict: Record<string, string>) {
+        this.registrations.push([ns, locale, dict])
+        return () => {
+          this.registrations = this.registrations.filter(([n]) => n !== ns)
+        }
+      },
+    }
+  }
+
+  it('registers the English dictionary once, under the genui namespace', () => {
+    const host = hostLocale('en')
+    const dispose = bridgeHostLocale({ get: () => host })
+    // One registration per shipped locale — exactly one, since English is it.
+    expect(host.registrations).toHaveLength(LOCALE_IDS.length)
+    const [ns, locale, dict] = host.registrations[0]!
+    expect(ns).toBe(GENUI_LOCALE_NS)
+    expect(locale).toBe('en')
+    expect(Object.keys(dict)).toEqual(Object.keys(EN))
+    dispose()
+    expect(host.registrations).toHaveLength(0)
+  })
+
+  it('ignores a host preference for a tag this fork no longer ships', () => {
+    const host = hostLocale('zh')
+    const dispose = bridgeHostLocale({ get: () => host })
+    expect(getLocale()).toBe('en')
+    dispose()
+  })
+
+  it('mirrors a host locale change onto the active locale', () => {
+    const host = hostLocale('en')
+    const dispose = bridgeHostLocale({ get: () => host })
+    act(() => {
+      host.active = 'en-GB'
+      for (const sync of [...host.syncs]) sync()
+    })
+    expect(getLocale()).toBe('en')
+    dispose()
+  })
+
+  it('degrades silently when the host ships no locale service', () => {
+    const dispose = bridgeHostLocale({ get: () => undefined })
+    expect(getLocale()).toBe('en')
+    expect(() => dispose()).not.toThrow()
+  })
+})
+
 describe('content builders follow the active locale', () => {
-  it('templates render in English and in Chinese', () => {
+  it('templates render their English display text', () => {
     setLocale('en')
-    const en = genuiTemplates()
-    expect(en[0]!.name).toBe('Project dashboard')
-    setLocale('zh')
-    const zh = genuiTemplates()
-    expect(zh[0]!.name).toBe('项目仪表盘')
-    // Same ids and categories either way — only the display text changes.
-    expect(en.map(x => x.id)).toEqual(zh.map(x => x.id))
-    expect(en.map(x => x.category)).toEqual(zh.map(x => x.category))
+    const templates = genuiTemplates()
+    expect(templates[0]!.name).toBe(EN['tpl.dashboard.name'])
+    expect(templates[0]!.name).toBe('Project dashboard')
+    // Ids stay stable and language-independent.
+    expect(new Set(templates.map(x => x.id)).size).toBe(templates.length)
   })
 
   it('every template demo stays valid in English', () => {
@@ -153,26 +257,24 @@ describe('content builders follow the active locale', () => {
 
   it('the default panel spec follows the locale and stays valid', () => {
     setLocale('en')
-    const en = defaultPanelSpec()
-    expect(en.title).toBe('GenUI panel')
-    expect(validateGenuiSpec(en).ok).toBe(true)
-    setLocale('zh')
-    expect(defaultPanelSpec().title).toBe('GenUI 面板')
+    const spec = defaultPanelSpec()
+    expect(spec.title).toBe(EN['panel.title.default'])
+    expect(spec.title).toBe('GenUI panel')
+    expect(validateGenuiSpec(spec).ok).toBe(true)
   })
 
   it('the trophy page follows the locale', () => {
     setLocale('en')
     expect(buildAchievementsSpec(emptyState(), {}).title).toBe('GenUI exploration trophies')
-    setLocale('zh')
-    expect(buildAchievementsSpec(emptyState(), {}).title).toBe('GenUI 探索成就')
+    expect(buildAchievementsSpec(emptyState(), {}).title).toBe(EN['ach.page.title'])
   })
 
   it('achievement name/description are read at access time, not frozen', () => {
     const first = ACHIEVEMENTS[0]!
+    expect(first.id).toBe('first-fence')
     setLocale('en')
+    expect(first.name).toBe(EN['ach.first-fence.name'])
     expect(first.name).toBe('First contact')
-    setLocale('zh')
-    expect(first.name).toBe('初次相见')
   })
 })
 
@@ -189,7 +291,7 @@ describe('live components', () => {
     expect(screen.getByText('Project dashboard')).toBeTruthy()
   })
 
-  it('re-renders in place when the locale switches', () => {
+  it('keeps rendering the shipped locale when an unshipped one is requested', () => {
     setLocale('en')
     render(<TemplateDrawer tab="templates" onUse={() => {}} />)
     expect(screen.getByText('Project dashboard')).toBeTruthy()
@@ -198,7 +300,7 @@ describe('live components', () => {
       setLocale('zh')
     })
 
-    expect(screen.getByText('项目仪表盘')).toBeTruthy()
-    expect(screen.queryByText('Project dashboard')).toBeNull()
+    expect(screen.getByText('Project dashboard')).toBeTruthy()
+    expect(getLocale()).toBe('en')
   })
 })

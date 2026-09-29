@@ -49,20 +49,20 @@ describe.skipIf(!hasFenceRegistry)('render caps', () => {
 
 describe.skipIf(!hasFenceRegistry)('a11y wiring', () => {
   it('exposes progress as a progressbar with aria values', () => {
-    render(<MarkdownText text={fenced({ items: [{ type: 'progress', label: '下载', value: 66, valueLabel: '66%' }] })} />)
+    render(<MarkdownText text={fenced({ items: [{ type: 'progress', label: 'Download', value: 66, valueLabel: '66%' }] })} />)
     const bar = screen.getByRole('progressbar')
     expect(bar.getAttribute('aria-valuenow')).toBe('66')
     expect(bar.getAttribute('aria-valuemin')).toBe('0')
     expect(bar.getAttribute('aria-valuemax')).toBe('100')
-    expect(bar.getAttribute('aria-label')).toBe('下载')
+    expect(bar.getAttribute('aria-label')).toBe('Download')
   })
 
   it('navigates tabs with arrow keys and wires aria-controls', () => {
     render(<MarkdownText text={fenced({ items: [
       { type: 'tabs', tabs: [
-        { label: '一', items: [{ type: 'text', content: 'panel 一' }] },
-        { label: '二', items: [{ type: 'text', content: 'panel 二' }] },
-        { label: '三', items: [{ type: 'text', content: 'panel 三' }] },
+        { label: 'One', items: [{ type: 'text', content: 'panel One' }] },
+        { label: 'Two', items: [{ type: 'text', content: 'panel Two' }] },
+        { label: 'Three', items: [{ type: 'text', content: 'panel Three' }] },
       ] },
     ] })} />)
     const tabs = screen.getAllByRole('tab')
@@ -71,7 +71,7 @@ describe.skipIf(!hasFenceRegistry)('a11y wiring', () => {
     expect(first.getAttribute('aria-controls')).not.toBeNull()
     fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' })
     expect(tabs[1]!.getAttribute('aria-selected')).toBe('true')
-    expect(document.body.textContent).toContain('panel 二')
+    expect(document.body.textContent).toContain('panel Two')
     fireEvent.keyDown(screen.getByRole('tablist'), { key: 'Home' })
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true')
     const panel = screen.getByRole('tabpanel')
@@ -80,25 +80,25 @@ describe.skipIf(!hasFenceRegistry)('a11y wiring', () => {
 
   it('announces quiz results via aria-live', () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'quiz', question: 'q', options: [{ label: '对', correct: true }, { label: '错' }] },
+      { type: 'quiz', question: 'q', options: [{ label: 'True', correct: true }, { label: 'False' }] },
     ] })} />)
     expect(document.querySelector('[aria-live="polite"]')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '对' }))
+    fireEvent.click(screen.getByRole('button', { name: 'True' }))
     const live = document.querySelector('[aria-live="polite"]')
     expect(live).not.toBeNull()
-    expect(live!.textContent).toContain('回答正确')
+    expect(live!.textContent).toContain('Correct!')
   })
 
   it('wires accordion headings to their bodies', () => {
     render(<MarkdownText text={fenced({ items: [
-      { type: 'accordion', items: [{ title: '头部', items: [{ type: 'text', content: '内容' }] }] },
+      { type: 'accordion', items: [{ title: 'Header', items: [{ type: 'text', content: 'Body' }] }] },
     ] })} />)
-    const head = screen.getByRole('button', { name: /头部/ })
+    const head = screen.getByRole('button', { name: /Header/ })
     const controls = head.getAttribute('aria-controls')
     expect(controls).not.toBeNull()
     const body = document.getElementById(controls!)
     expect(body).not.toBeNull()
-    expect(body!.textContent).toContain('内容')
+    expect(body!.textContent).toContain('Body')
   })
 
   it('gives sibling radio groups distinct names', () => {

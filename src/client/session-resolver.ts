@@ -11,10 +11,10 @@ interface SessionListSnapshot {
 }
 
 /**
- * 从宿主会话列表快照中解析当前主视图会话。
+ * Resolve the current main-view session from the host session list snapshot.
  *
- * @param list - 宿主提供的会话列表快照
- * @returns 当前会话标识；无法识别快照结构时返回 undefined
+ * @param list - session list snapshot provided by the host
+ * @returns the current session id; undefined when the snapshot shape is unrecognized
  */
 export function resolveViewedSessionId(list: unknown): SessionId | undefined {
   if (typeof list !== 'object' || list === null) return undefined

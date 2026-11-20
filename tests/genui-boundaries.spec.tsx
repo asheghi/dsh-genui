@@ -11,8 +11,7 @@
 //    collection, and restore blank — while their own action still delivers.
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MarkdownText } from './markdown-labels.tsx'
-import { hasFenceRegistry } from './helpers/fence-host'
+import { MarkdownText } from './genui-markdown.tsx'
 import { GenuiActionContext } from '../src/client/action-context.ts'
 import { GENUI_ACTION_DEBOUNCE_MS } from '../src/client/GenuiBlock.tsx'
 import { GenuiBlock } from '../src/client/GenuiBlock.tsx'
@@ -40,28 +39,28 @@ function renderBlock(spec: unknown, stateKey: string | undefined, onAction?: (a:
 const gradeSpec = {
   items: [
     { type: 'tabs', tabs: [
-      { label: 'Questions', items: [
-        { type: 'radio', label: 'Q1', group: 'q1', options: ['Alpha', 'Beta'], answer: 0, explanation: 'Alpha is correct' },
-        { type: 'input', label: 'Name', id: 'name', placeholder: 'Your name' },
-        { type: 'submit', label: 'Submit paper', action: 'submit-paper', groups: ['q1'] },
+      { label: '题目', items: [
+        { type: 'radio', label: 'Q1', group: 'q1', options: ['甲', '乙'], answer: 0, explanation: '甲对' },
+        { type: 'input', label: '姓名', id: 'name', placeholder: '你的名字' },
+        { type: 'submit', label: '交卷', action: 'submit-paper', groups: ['q1'] },
       ] },
     ] },
   ],
 }
 
-describe.skipIf(!hasFenceRegistry)('forms inside tabs share the block answers registry', () => {
+describe('forms inside tabs share the block answers registry', () => {
   it('grades locally inside a tab and keeps the answer when switching tabs', () => {
     const onAction = vi.fn()
     renderBlock(gradeSpec, undefined, onAction)
     // answer the grouped radio inside the tab
-    fireEvent.click(screen.getByRole('radio', { name: 'Alpha' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit paper' }))
+    fireEvent.click(screen.getByRole('radio', { name: '甲' }))
+    fireEvent.click(screen.getByRole('button', { name: '交卷' }))
     // local grading result appears (no round trip)
-    expect(screen.getByText(/Score/)).toBeTruthy()
+    expect(screen.getByText(/得分/)).toBeTruthy()
     expect(onAction).not.toHaveBeenCalled()
     // switching away and back keeps the graded result
     fireEvent.click(screen.getAllByRole('tab')[0]!)
-    expect(screen.getByText(/Score/)).toBeTruthy()
+    expect(screen.getByText(/得分/)).toBeTruthy()
   })
 
   it('submits with both answers and fields from inside a tab', () => {
@@ -69,21 +68,21 @@ describe.skipIf(!hasFenceRegistry)('forms inside tabs share the block answers re
     renderBlock({
       items: [
         { type: 'tabs', tabs: [
-          { label: 'Form', items: [
-            { type: 'radio', label: 'Q1', group: 'q1', options: ['Alpha', 'Beta'] },
-            { type: 'input', label: 'Name', id: 'name' },
-            { type: 'submit', label: 'Send', action: 'send', groups: ['q1'] },
+          { label: '表单', items: [
+            { type: 'radio', label: 'Q1', group: 'q1', options: ['甲', '乙'] },
+            { type: 'input', label: '姓名', id: 'name' },
+            { type: 'submit', label: '发送', action: 'send', groups: ['q1'] },
           ] },
         ] },
       ],
     }, undefined, onAction)
-    fireEvent.click(screen.getByRole('radio', { name: 'Alpha' }))
-    fireEvent.change(screen.getAllByRole('textbox')[0]!, { target: { value: 'Zhang' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    fireEvent.click(screen.getByRole('radio', { name: '甲' }))
+    fireEvent.change(screen.getAllByRole('textbox')[0]!, { target: { value: '小张' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({
-      answers: { q1: 'Alpha' },
-      fields: { name: 'Zhang' },
+      answers: { q1: '甲' },
+      fields: { name: '小张' },
     }))
   })
 
@@ -92,32 +91,32 @@ describe.skipIf(!hasFenceRegistry)('forms inside tabs share the block answers re
     renderBlock({
       items: [
         { type: 'tabs', tabs: [
-          { label: 'A', items: [{ type: 'input', label: 'Name', id: 'n' }] },
-          { label: 'B', items: [{ type: 'text', content: 'B content' }] },
+          { label: 'A', items: [{ type: 'input', label: '名字', id: 'n' }] },
+          { label: 'B', items: [{ type: 'text', content: 'B 内容' }] },
         ] },
-        { type: 'submit', label: 'Send', action: 'send' },
+        { type: 'submit', label: '发送', action: 'send' },
       ],
     }, undefined, onAction)
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Qiang' } })
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '阿强' } })
     fireEvent.click(screen.getByRole('tab', { name: 'B' }))
     fireEvent.click(screen.getByRole('tab', { name: 'A' }))
-    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('Qiang')
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('阿强')
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
-    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { n: 'Qiang' } }))
+    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { n: '阿强' } }))
   })
 })
 
-describe.skipIf(!hasFenceRegistry)('field invariants', () => {
+describe('field invariants', () => {
   it('clearing an input re-disables submit', () => {
     const onAction = vi.fn()
     renderBlock({ items: [
       { type: 'input', label: 'F', id: 'f' },
-      { type: 'submit', label: 'Send', action: 'send' },
+      { type: 'submit', label: '发送', action: 'send' },
     ] }, undefined, onAction)
-    const submit = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement
+    const submit = screen.getByRole('button', { name: '发送' }) as HTMLButtonElement
     expect(submit.disabled).toBe(true)
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'value' } })
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '值' } })
     expect(submit.disabled).toBe(false)
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } })
     expect(submit.disabled).toBe(true)
@@ -128,42 +127,42 @@ describe.skipIf(!hasFenceRegistry)('field invariants', () => {
     renderBlock({ items: [
       { type: 'input', label: 'A', id: 'a' },
       { type: 'input', label: 'B', id: 'b' },
-      { type: 'submit', label: 'Send', action: 'send' },
+      { type: 'submit', label: '发送', action: 'send' },
     ] }, undefined, onAction)
     fireEvent.change(screen.getAllByRole('textbox')[0]!, { target: { value: '   ' } })
-    fireEvent.change(screen.getAllByRole('textbox')[1]!, { target: { value: 'real value' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    fireEvent.change(screen.getAllByRole('textbox')[1]!, { target: { value: '真实值' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
-    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { b: 'real value' } }))
+    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { b: '真实值' } }))
   })
 
   it('a spec-provided default value registers at mount (submit enabled immediately)', () => {
     const onAction = vi.fn()
     renderBlock({ items: [
-      { type: 'input', label: 'F', id: 'f', value: 'default value' },
-      { type: 'submit', label: 'Send', action: 'send' },
+      { type: 'input', label: 'F', id: 'f', value: '默认值' },
+      { type: 'submit', label: '发送', action: 'send' },
     ] }, undefined, onAction)
-    const submit = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement
+    const submit = screen.getByRole('button', { name: '发送' }) as HTMLButtonElement
     expect(submit.disabled).toBe(false)
     fireEvent.click(submit)
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
-    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { f: 'default value' } }))
+    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { f: '默认值' } }))
   })
 
   it('preserves the user string verbatim (no payload trimming)', () => {
     const onAction = vi.fn()
     renderBlock({ items: [
       { type: 'input', label: 'F', id: 'f' },
-      { type: 'submit', label: 'Send', action: 'send' },
+      { type: 'submit', label: '发送', action: 'send' },
     ] }, undefined, onAction)
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: '  padded  ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '  首尾空格  ' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
-    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { f: '  padded  ' } }))
+    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { f: '  首尾空格  ' } }))
   })
 })
 
-describe.skipIf(!hasFenceRegistry)('IME protection (three layers)', () => {
+describe('IME protection (three layers)', () => {
   const inputSpec = { items: [
     { type: 'input', label: 'F', id: 'f', action: 'input-action' },
     { type: 'textarea', label: 'T', id: 't', action: 'ta-action' },
@@ -224,25 +223,25 @@ describe.skipIf(!hasFenceRegistry)('IME protection (three layers)', () => {
   })
 })
 
-describe.skipIf(!hasFenceRegistry)('password boundary (masked, never persisted, never collected)', () => {
+describe('password boundary (masked, never persisted, never collected)', () => {
   const KEY = 'boundary-test-key'
   const passSpec = { items: [
-    { type: 'input', label: 'Passcode', id: 'pw', inputType: 'password', action: 'pw-action' },
-    { type: 'input', label: 'Nickname', id: 'nick' },
-    { type: 'submit', label: 'Send', action: 'send' },
+    { type: 'input', label: '口令', id: 'pw', inputType: 'password', action: 'pw-action' },
+    { type: 'input', label: '昵称', id: 'nick' },
+    { type: 'submit', label: '发送', action: 'send' },
   ] }
 
   it('renders a masked password input (no plaintext field)', () => {
     renderBlock(passSpec, KEY, vi.fn())
-    const pw = screen.getByLabelText('Passcode') as HTMLInputElement
+    const pw = screen.getByLabelText('口令') as HTMLInputElement
     expect(pw.type).toBe('password')
     expect(pw.type).not.toBe('text')
   })
 
   it('never persists the password value to localStorage', () => {
     renderBlock(passSpec, KEY, vi.fn())
-    fireEvent.change(screen.getByLabelText('Passcode'), { target: { value: 's3cret!' } })
-    fireEvent.change(screen.getByLabelText('Nickname'), { target: { value: 'Ming' } })
+    fireEvent.change(screen.getByLabelText('口令'), { target: { value: 's3cret!' } })
+    fireEvent.change(screen.getByLabelText('昵称'), { target: { value: '小明' } })
     vi.advanceTimersByTime(400) // durable-save debounce
     const raw = localStorage.getItem('dsh.genui.interaction')
     expect(raw).not.toBeNull()
@@ -250,26 +249,26 @@ describe.skipIf(!hasFenceRegistry)('password boundary (masked, never persisted, 
     const block = parsed.blocks[KEY]!
     expect(block.fields).toBeDefined()
     expect(block.fields!.pw).toBeUndefined()
-    expect(block.fields!.nick).toBe('Ming')
+    expect(block.fields!.nick).toBe('小明')
   })
 
   it('restores blank after refresh (password never survives a remount)', () => {
     renderBlock(passSpec, KEY, vi.fn())
-    fireEvent.change(screen.getByLabelText('Passcode'), { target: { value: 's3cret!' } })
+    fireEvent.change(screen.getByLabelText('口令'), { target: { value: 's3cret!' } })
     vi.advanceTimersByTime(400)
     cleanup()
     renderBlock(passSpec, KEY, vi.fn())
-    expect((screen.getByLabelText('Passcode') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('口令') as HTMLInputElement).value).toBe('')
   })
 
   it('excludes the password field from submit collection', () => {
     const onAction = vi.fn()
     renderBlock(passSpec, KEY, onAction)
-    fireEvent.change(screen.getByLabelText('Passcode'), { target: { value: 's3cret!' } })
-    fireEvent.change(screen.getByLabelText('Nickname'), { target: { value: 'Ming' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    fireEvent.change(screen.getByLabelText('口令'), { target: { value: 's3cret!' } })
+    fireEvent.change(screen.getByLabelText('昵称'), { target: { value: '小明' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
-    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { nick: 'Ming' } }))
+    expect(onAction).toHaveBeenCalledWith('send', expect.objectContaining({ fields: { nick: '小明' } }))
     const payload = onAction.mock.calls[0]![1] as { fields: Record<string, string> }
     expect(payload.fields.pw).toBeUndefined()
   })
@@ -277,14 +276,14 @@ describe.skipIf(!hasFenceRegistry)('password boundary (masked, never persisted, 
   it('a password-only form cannot enable submit (nothing to collect), but its own action still delivers', () => {
     const onAction = vi.fn()
     renderBlock({ items: [
-      { type: 'input', label: 'Passcode', id: 'pw', inputType: 'password', action: 'pw-action' },
-      { type: 'submit', label: 'Send', action: 'send' },
+      { type: 'input', label: '口令', id: 'pw', inputType: 'password', action: 'pw-action' },
+      { type: 'submit', label: '发送', action: 'send' },
     ] }, KEY, onAction)
-    const submit = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement
-    fireEvent.change(screen.getByLabelText('Passcode'), { target: { value: 's3cret!' } })
+    const submit = screen.getByRole('button', { name: '发送' }) as HTMLButtonElement
+    fireEvent.change(screen.getByLabelText('口令'), { target: { value: 's3cret!' } })
     expect(submit.disabled).toBe(true)
     // the input's own action fires on explicit Enter (user-authorized)
-    fireEvent.keyDown(screen.getByLabelText('Passcode'), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByLabelText('口令'), { key: 'Enter' })
     vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS)
     expect(onAction).toHaveBeenCalledWith('pw-action', expect.objectContaining({ type: 'input', value: 's3cret!', submit: true }))
   })

@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
-// Teaching components: quiz judging, plot animation bar, reset, staggered reveal.
+// Teaching components: quiz judging, plot animation bar, reset, entrance reveal.
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { hasFenceRegistry } from './helpers/fence-host'
 
-// jsdom has no real requestAnimationFrame loop; advance frames manually
-// through a controllable mock.
+// jsdom 没有真正的 requestAnimationFrame 循环；用可控 mock 手动推进帧。
 let rafCallbacks: Array<(t: number) => void> = []
 let rafTime = 0
 beforeEach(() => {
@@ -28,7 +26,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 import { vi } from 'vitest'
-import { MarkdownText } from './markdown-labels.tsx'
+import { MarkdownText } from './genui-markdown.tsx'
 
 afterEach(cleanup)
 
@@ -36,36 +34,36 @@ function fenced(spec: unknown): string {
   return `\`\`\`dsh-ui\n${JSON.stringify(spec)}\n\`\`\``
 }
 
-describe.skipIf(!hasFenceRegistry)('quiz component', () => {
+describe('quiz component', () => {
   it('judges correct and wrong answers in place', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
-      { type: 'quiz', question: 'What is sin(0)?', options: [
-        { label: '0', correct: true, feedback: 'Right, sin(0)=0' },
-        { label: '1', feedback: 'sin(0) is not 1' },
-      ], explanation: 'On the unit circle the y coordinate at 0 radians is 0' },
+      { type: 'quiz', question: 'sin(0) 等于？', options: [
+        { label: '0', correct: true, feedback: '对，sin(0)=0' },
+        { label: '1', feedback: 'sin(0) 不是 1' },
+      ], explanation: '单位圆上 0 弧度的 y 坐标为 0' },
     ] })} />)
     expect(container.querySelector('[data-genui-quiz]')).not.toBeNull()
-    // Wrong answer
+    // 答错
     fireEvent.click(container.querySelectorAll('[data-genui-quiz] button')[1]!)
-    expect(container.textContent).toContain('Try again')
-    expect(container.textContent).toContain('sin(0) is not 1')
-    // Answer again
+    expect(container.textContent).toContain('再想想')
+    expect(container.textContent).toContain('sin(0) 不是 1')
+    // 重新作答
     fireEvent.click(container.querySelector('[class*="quizRetry"]')!)
-    // Right answer
+    // 答对
     fireEvent.click(container.querySelectorAll('[data-genui-quiz] button')[0]!)
-    expect(container.textContent).toContain('Correct!')
-    expect(container.textContent).toContain('unit circle')
+    expect(container.textContent).toContain('回答正确')
+    expect(container.textContent).toContain('单位圆上')
   })
 })
 
-describe.skipIf(!hasFenceRegistry)('plot animation', () => {
+describe('plot animation', () => {
   it('renders play button when a param has animateTo', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
       { type: 'plot', series: [{ expr: 'a*sin(x)', params: [{ name: 'a', value: 1, min: 0, max: 5, animateTo: 3 }] }] },
     ] })} />)
     const play = container.querySelector('[class*="playBtn"]')
     expect(play).not.toBeNull()
-    expect(play!.textContent).toContain('Play animation')
+    expect(play!.textContent).toContain('播放')
   })
 
   it('animates the parameter over time', async () => {
@@ -73,13 +71,13 @@ describe.skipIf(!hasFenceRegistry)('plot animation', () => {
       { type: 'plot', series: [{ expr: 'a*sin(x)', params: [{ name: 'a', value: 1, min: 0, max: 5, animateTo: 3, durationMs: 200 }] }] },
     ] })} />)
     fireEvent.click(container.querySelector('[class*="playBtn"]')!)
-    // Playing: advance a few frames; the parameter must move off its start value
+    // 播放中：推进几帧，参数值应偏离初始值
     act(() => { tick(50); tick(50); tick(50) })
     const value = container.querySelector('[class*="sliderValue"]')?.textContent
     expect(value).not.toBe('1')
-    // Advance past the end (durationMs 200) and return to the stopped state
+    // 推进到结束（durationMs 200），回到停止状态
     act(() => { tick(200) })
-    expect(container.querySelector('[class*="playBtn"]')?.textContent).toContain('Play animation')
+    expect(container.querySelector('[class*="playBtn"]')?.textContent).toContain('播放')
   }, 5000)
 
   it('resets params to declared defaults', () => {
@@ -88,15 +86,15 @@ describe.skipIf(!hasFenceRegistry)('plot animation', () => {
     ] })} />)
     fireEvent.change(container.querySelector('input[type="range"]')!, { target: { value: '4' } })
     expect((container.querySelector('input[type="range"]') as HTMLInputElement).value).toBe('4')
-    const resetBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('Reset'))
+    const resetBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('重置'))
     expect(resetBtn).toBeTruthy()
     fireEvent.click(resetBtn!)
     expect((container.querySelector('input[type="range"]') as HTMLInputElement).value).toBe('1')
   })
 })
 
-describe.skipIf(!hasFenceRegistry)('staggered reveal', () => {
-  it('wraps root items with incremental reveal delays', () => {
+describe('entrance reveal', () => {
+  it('keeps a short stagger and caps the wait at 160ms', () => {
     const { container } = render(<MarkdownText text={fenced({ items: [
       { type: 'stat', label: 'A', value: '1' },
       { type: 'stat', label: 'B', value: '2' },
@@ -104,13 +102,13 @@ describe.skipIf(!hasFenceRegistry)('staggered reveal', () => {
     ] })} />)
     const reveals = container.querySelectorAll('[class*="reveal"]')
     expect(reveals.length).toBe(3)
-    const delays = [...reveals].map(el => {
-      const st = el.getAttribute('style') ?? ''
-      const m = st.match(/animationDelay:\s*([0-9.]+)ms/) ?? st.match(/animation-delay:\s*([0-9.]+)ms/)
-      return m ? Number(m[1]) : 0
+    const delays = [...reveals].map(element => {
+      const style = element.getAttribute('style') ?? ''
+      const match = style.match(/animation[- ]delay:\s*([0-9.]+)ms/i)
+      return match === null ? 0 : Number(match[1])
     })
-    expect(delays[0]!).toBe(0)
-    expect(delays[1]!).toBeGreaterThan(delays[0]!)
-    expect(delays[2]!).toBeGreaterThan(delays[1]!)
+    // 90ms of rhythm per item, capped at 160ms: he last item lands at ~410ms
+    // (160 delay + 250ms fade) instead of the uncapped 1.17s.
+    expect(delays).toEqual([0, 90, 160])
   })
 })

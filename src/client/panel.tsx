@@ -26,12 +26,12 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { GenuiActionContext, type GenuiActionHandler } from './action-context.ts'
+import { withFileLinkContext, type FileLinkAvailability, type FileLinkCordisContext } from './file-link-context.tsx'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ExportableGenuiBlock } from './artifact/ExportableGenuiBlock.tsx'
 import { ErrorBoundary } from './ErrorBoundary.tsx'
-import { panelStateKey } from './interaction-store.ts'
 import { TemplateDrawer } from './TemplateDrawer.tsx'
-import { clearSessionPanel, getPanelExpandToken, getPanelSpec, setLocalPanel, subscribePanel, subscribePanelExpand } from './panel-store.ts'
+import { clearSessionPanel, getPanelExpandToken, getPanelSpec, getPanelStateKey, setLocalPanel, subscribePanel, subscribePanelExpand } from './panel-store.ts'
 import { useT } from './i18n/index.ts'
 import css from './GenuiBlock.module.css'
 
@@ -50,6 +50,7 @@ import { recordPanel, recordTemplateUse } from './achievement-store.ts'
 export interface GenuiPanelInjected {
   sessionId: string
   sendGenuiAction: GenuiActionHandler
+  fileLinkContext?: { ctx: FileLinkCordisContext; availability: FileLinkAvailability }
   /** Template center "try it": insert the template instruction into the
    *  current composer draft (standard conversation.input.for channel). */
   insertTemplate: (text: string) => void
@@ -63,7 +64,7 @@ export type GenuiPanelProps = PropsRuntime<'conversation.input.dock'> & GenuiPan
  * default so the dock never steals the message flow's scroll room; the
  * header always shows the current panel title.
  */
-export function GenuiPanel({ sessionId, sendGenuiAction, insertTemplate }: GenuiPanelProps) {
+export function GenuiPanel({ sessionId, sendGenuiAction, insertTemplate, fileLinkContext }: GenuiPanelProps) {
   const t = useT()
   const spec = useSyncExternalStore(subscribePanel, () => getPanelSpec(sessionId))
   const expandToken = useSyncExternalStore(subscribePanelExpand, () => getPanelExpandToken(sessionId))
@@ -207,7 +208,7 @@ export function GenuiPanel({ sessionId, sendGenuiAction, insertTemplate }: Genui
           <span className={css.panelBadge}>{t('panel.badge')}</span>
           <span className={css.panelTitle}>{spec?.title ?? t(drawer !== null ? 'panel.title.explore' : 'panel.title.default')}</span>
           <span className={css.panelChevron} aria-hidden>
-            {/* Chevron matching the collapsed state. */}
+            {/* 折叠状态对应的箭头。 */}
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d={collapsed ? 'M12 10L8.70711 6.70711C8.31658 6.31658 7.68342 6.31658 7.29289 6.70711L4 10' : 'M4 6L7.29289 9.29289C7.68342 9.68342 8.31658 9.68342 8.70711 9.29289L12 6'} stroke="currentColor" />
             </svg>
@@ -271,10 +272,21 @@ export function GenuiPanel({ sessionId, sendGenuiAction, insertTemplate }: Genui
             />
           ) : spec !== null ? (
             <GenuiActionContext.Provider value={sendGenuiAction}>
-              <ErrorBoundary label={t('panel.boundary')}>
-                {/* content-fingerprinted: same panel spec re-published restores its state */}
-                <ExportableGenuiBlock spec={spec} stateKey={panelStateKey(sessionId, JSON.stringify(spec))} />
-              </ErrorBoundary>
+              {fileLinkContext === undefined
+                ? <ErrorBoundary label={t('panel.boundary')}>
+                  {/* 追加沿用基项身份，替换操作使用自身内容身份 */}
+                  <ExportableGenuiBlock spec={spec} stateKey={getPanelStateKey(sessionId)} />
+                </ErrorBoundary>
+                : withFileLinkContext(
+                  fileLinkContext.ctx,
+                  fileLinkContext.availability,
+                  sessionId,
+                  false,
+                  <ErrorBoundary label={t('panel.boundary')}>
+                    {/* 追加沿用基项身份，替换操作使用自身内容身份 */}
+                    <ExportableGenuiBlock spec={spec} stateKey={getPanelStateKey(sessionId)} />
+                  </ErrorBoundary>,
+                )}
             </GenuiActionContext.Provider>
           ) : null}
         </div>

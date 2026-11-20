@@ -20,9 +20,9 @@ afterEach(() => {
 })
 
 describe('TemplateDrawer', () => {
-  it('renders every category chip and template card', () => {
+  it('渲染全部分类 chip 与模板卡片', () => {
     renderDrawer()
-    for (const c of ['All', 'Dashboard', 'Data', 'Flow', 'Charts', 'Interactive', 'Quiz', 'Advanced']) {
+    for (const c of ['全部', '仪表盘', '数据', '流程', '图表', '交互', '测验', '高级']) {
       expect(screen.getByRole('tab', { name: c })).toBeTruthy()
     }
     for (const tpl of GENUI_TEMPLATES) {
@@ -30,55 +30,53 @@ describe('TemplateDrawer', () => {
     }
   })
 
-  it('category filter: clicking "Quiz" shows only chart-category templates', () => {
+  it('分类过滤：点「测验」只显示图表类模板', () => {
     renderDrawer()
-    fireEvent.click(screen.getByRole('tab', { name: 'Quiz' }))
-    expect(screen.queryByText('Project dashboard')).toBeNull()
-    expect(screen.getByText('Pop quiz')).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: '测验' }))
+    expect(screen.queryByText('项目仪表盘')).toBeNull()
+    expect(screen.getByText('随堂测验')).toBeTruthy()
   })
 
-  it('clicking a card: the preview renders the demo and shows "Try it / Copy"', async () => {
+  it('点击卡片：预览渲染 demo 并显示「试用/复制」', async () => {
     renderDrawer()
-    fireEvent.click(screen.getByText('Project dashboard'))
-    // The demo preview is rendered by GenuiBlock: the first screen shows the
-    // example title and the stat labels.
+    fireEvent.click(screen.getByText('项目仪表盘'))
+    // Demo 预览由 GenuiBlock 渲染：首屏应有示例标题与 stat 标签
     const preview = document.querySelector('[data-genui-template-preview]')
     expect(preview).toBeTruthy()
-    expect(screen.getByText('This week’s key metrics')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Try it: insert into composer' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Copy instruction/ })).toBeTruthy()
+    expect(screen.getByText('本周关键指标')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '试用：插入输入框' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /复制指令/ })).toBeTruthy()
   })
 
-  it('the "try it" callback receives the template instruction', () => {
+  it('「试用」回调收到模板指令', () => {
     const onUse = vi.fn()
     renderDrawer(onUse)
-    fireEvent.click(screen.getByText('Project dashboard'))
-    fireEvent.click(screen.getByRole('button', { name: 'Try it: insert into composer' }))
+    fireEvent.click(screen.getByText('项目仪表盘'))
+    fireEvent.click(screen.getByRole('button', { name: '试用：插入输入框' }))
     expect(onUse).toHaveBeenCalledTimes(1)
     expect(onUse.mock.calls[0][0]).toContain('dsh-ui')
-    expect(onUse.mock.calls[0][0]).toContain('dashboard')
+    expect(onUse.mock.calls[0][0]).toContain('仪表盘')
   })
 
-  it('"copy instruction" goes through the clipboard (silent fallback without navigator)', async () => {
+  it('「复制指令」走 clipboard（无 navigator 时静默容错）', async () => {
     const writeText = vi.fn()
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     const onUse = vi.fn()
     renderDrawer(onUse)
-    fireEvent.click(screen.getByText('Project dashboard'))
+    fireEvent.click(screen.getByText('项目仪表盘'))
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Copy instruction/ }))
+      fireEvent.click(screen.getByRole('button', { name: /复制指令/ }))
     })
     expect(writeText).toHaveBeenCalledTimes(1)
     expect(writeText.mock.calls[0][0]).toContain('dsh-ui')
   })
 
-  it('the achievements panel renders the trophy page (dsh-ui self-rendered, no extra mode tabs)', () => {
+  it('成就面板渲染成就页（dsh-ui 自渲染，无多余 mode tabs）', () => {
     const withTab = render(<TemplateDrawer tab="achievements" onUse={() => {}} />)
     expect(document.querySelector('[data-genui-achievements]')).toBeTruthy()
-    expect(screen.getByText(/GenUI exploration trophies/)).toBeTruthy()
-    // The drawer no longer carries a "templates|trophies" mode switch (the
-    // panel header buttons own that).
-    expect(screen.queryByRole('tab', { name: 'Trophies' })).toBeNull()
+    expect(screen.getByText(/GenUI 探索成就/)).toBeTruthy()
+    // 抽屉内不再有「模板|成就」mode 切换（面板 header 按钮负责）
+    expect(screen.queryByRole('tab', { name: '成就' })).toBeNull()
     withTab.unmount()
   })
 })

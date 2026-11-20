@@ -6,12 +6,14 @@ import { getPanelExpandToken, getPanelSpec } from '../src/client/panel-store.ts'
 import { repairGenuiSpec } from '../src/client/guard.ts'
 
 const SID = 'panel-command-test'
+const RESTORE_SID = 'panel-command-restore-test'
+const ABORT_SID = 'panel-command-abort-test'
 
 describe('defaultPanelSpec()', () => {
   it('is a valid repairable spec', () => {
     const repaired = repairGenuiSpec(defaultPanelSpec())
     expect(repaired).not.toBeNull()
-    expect(repaired!.title).toBe('GenUI panel')
+    expect(repaired!.title).toBe('GenUI 面板')
     expect(repaired!.items.length).toBeGreaterThan(3)
   })
 })
@@ -22,6 +24,9 @@ describe('/panel slash source', () => {
     instructions.push({ sessionId, instruction })
   }
   const source = createPanelSlashSource(sendInstruction as never)
+  const sourceWithMatchClaim = source as typeof source & {
+    matchClaim?: (session: { sessionId: string }, token: string, signal: AbortSignal) => Promise<unknown>
+  }
 
   it('is a leading "/" source grouped under genui', () => {
     expect(source.trigger).toBe('/')
@@ -78,20 +83,50 @@ describe('/panel slash source', () => {
     expect(getPanelSpec(SID)).toBeNull()
   })
 
-  it('relays an instruction to the model on /panel <instruction> instead of swallowing it', async () => {
-    const outcome = await source.matchEnter!({ sessionId: SID } as never, '/panel summarize the session', new AbortController().signal)
+  it('relays an instruction to the model on /panel <指令> instead of swallowing it', async () => {
+    const outcome = await source.matchEnter!({ sessionId: SID } as never, '/panel 总结一下会话内容', new AbortController().signal)
     expect(outcome).not.toBeUndefined()
     const claim = (outcome as { claim: { submit: (a: string) => Promise<unknown> } }).claim
-    const result = await claim.submit('summarize the session')
+    const result = await claim.submit('总结一下会话内容')
     expect(result).toEqual({ kind: 'success' })
     // The default spec shows instantly for feedback…
     expect(getPanelSpec(SID)).toEqual(defaultPanelSpec())
     // …and the instruction reached the model verbatim.
-    expect(instructions).toContainEqual({ sessionId: SID, instruction: 'summarize the session' })
+    expect(instructions).toContainEqual({ sessionId: SID, instruction: '总结一下会话内容' })
   })
 
   it('ignores non-panel lines in matchEnter', async () => {
     const outcome = await source.matchEnter!({ sessionId: SID } as never, '/other', new AbortController().signal)
     expect(outcome).toBeUndefined()
+  })
+
+  it('restores a persisted /panel claim without applying the command', async () => {
+    const instructionCount = instructions.length
+    const claim = await sourceWithMatchClaim.matchClaim!({ sessionId: RESTORE_SID }, '/panel', new AbortController().signal) as {
+      name: string
+      submit: (args: string) => Promise<unknown>
+    }
+
+    expect(claim.name).toBe('panel')
+    expect(getPanelSpec(RESTORE_SID)).toBeNull()
+    expect(instructions).toHaveLength(instructionCount)
+
+    await claim.submit('')
+    expect(getPanelSpec(RESTORE_SID)).toEqual(defaultPanelSpec())
+  })
+
+  it('restores only the exact /panel token', async () => {
+    for (const token of ['/panel clear', '/panelx', 'panel', '/Panel']) {
+    await expect(sourceWithMatchClaim.matchClaim!({ sessionId: RESTORE_SID }, token, new AbortController().signal)).resolves.toBeUndefined()
+    }
+  })
+
+  it('rejects a persisted claim request when its signal is aborted', async () => {
+    const controller = new AbortController()
+    const reason = new Error('claim lookup aborted')
+    controller.abort(reason)
+
+    await expect(sourceWithMatchClaim.matchClaim!({ sessionId: ABORT_SID }, '/panel', controller.signal)).rejects.toBe(reason)
+    expect(getPanelSpec(ABORT_SID)).toBeNull()
   })
 })

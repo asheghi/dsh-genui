@@ -2,17 +2,10 @@
  * dsh-genui browser half: the ```dsh-ui fence renderer, the keyed toolview
  * for the `render_ui` tool, and the session panel dock.
  *
- * Fence rendering is dual-mode, chosen at boot:
- * - **Registry channel** (contract hosts): the host's MarkdownText resolves
- *   ```dsh-ui fences through the fence-registry extension point; this package
- *   registers `renderGenuiFence`. Action callbacks ride the host-installed
- *   GenuiActionContext.
- * - **DOM channel** (pristine hosts): no extension point exists, so
- *   `dom-fence.ts` observes the conversation DOM, finds settled stock code
- *   blocks labelled `dsh-ui`, and mounts the same render pipeline in its own
- *   React roots — wrapped in the plugin-owned GenuiActionContext that relays
- *   `[genui-action]` through the scoped conversation send. Either way the
- *   deployment is the STOCK DSH snapshot plus this plugin.
+ * Fence rendering uses the stock DSH DOM. `dom-fence.ts` observes the
+ * conversation DOM, identifies `dsh-ui` blocks and mounts the renderer in
+ * plugin-owned React roots. The plugin-owned GenuiActionContext relays
+ * `[genui-action]` through the scoped conversation send.
  *
  * The renderer parses the fence body with the partial parser: while the reply
  * streams, every FINISHED component appears the moment its JSON object
@@ -26,28 +19,27 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { IConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { Key, ReactNode } from 'react'
-import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
+import { createElement } from 'react'
+import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import { installDomFenceRenderer } from './dom-fence.tsx'
-import { renderGenuiFence, type GenuiFenceContext } from './fence-render.tsx'
-import { renderSvgFence } from './svg-fence.tsx'
+import { installSidechatAdapter, type SidechatSurfaceService } from './sidechat-surface.tsx'
+import { createFileLinkAvailability, withFileLinkContext, type FileLinkCordisContext } from './file-link-context.tsx'
 import { createPanelSlashSource } from './panel-command.ts'
 import { GenuiPanel, type GenuiPanelInjected } from './panel.tsx'
 import { GenuiToolView } from './toolview.tsx'
 import { mountAchievementToasts } from './achievement-toast.tsx'
-import { bridgeHostLocale } from './i18n/index.ts'
+import { bridgeHostLocale, t } from './i18n/index.ts'
 import type { InputTriggerServiceContract } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { assetUrl } from './asset-loader.ts'
-
-/** Host extension surface the registry channel needs (absent on pristine). */
-type HostFenceExt = {
-  registerFenceRenderer?: (lang: string, renderer: (raw: string, key: Key, context?: GenuiFenceContext) => ReactNode) => () => void
-}
 
 /** Add low-priority prefetch links for the lazy engine assets (mermaid/three).
  * Browser-dependent: some engines ignore `<link rel=prefetch>`; harmless
  * either way — the on-demand loader still covers a cache miss. Exported for
- * tests. */
+ * tests.
+ *
+ * Not called at boot: these engines are ~1.25 MB gzip together, and most
+ * sessions never render a mermaid or 3D node. {@link prefetchOnFirstFence}
+ * arms it once, when the first `dsh-ui` fence actually renders. */
 export function prefetchGenuiAssets(): void {
   if (typeof document === 'undefined') return
   for (const file of ['mermaid.js', 'three.js']) {
@@ -57,6 +49,39 @@ export function prefetchGenuiAssets(): void {
     link.as = 'script'
     link.href = assetUrl(file)
     document.head.appendChild(link)
+  }
+}
+
+/** DOM fence renderer 挂载 dsh-ui fence 后派发的事件。 */
+export const FENCE_MOUNTED_EVENT = 'genui:fence-mounted'
+
+/**
+ * Prefetch the lazy engines once, after the first `dsh-ui` fence renders.
+ * @returns a disposer removing the pending listener.
+ */
+export function prefetchOnFirstFence(): () => void {
+  if (typeof document === 'undefined') return () => {}
+  let cancelIdle: (() => void) | undefined
+  const onMounted = (): void => {
+    document.removeEventListener(FENCE_MOUNTED_EVENT, onMounted)
+    // Idle-time, low priority: never competes with the reply that is streaming in.
+    const run = (): void => { cancelIdle = undefined; prefetchGenuiAssets() }
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number
+      cancelIdleCallback?: (id: number) => void
+    }
+    if (typeof w.requestIdleCallback === 'function') {
+      const id = w.requestIdleCallback(run, { timeout: 4000 })
+      cancelIdle = () => w.cancelIdleCallback?.(id)
+    } else {
+      const id = setTimeout(run, 1500)
+      cancelIdle = () => clearTimeout(id)
+    }
+  }
+  document.addEventListener(FENCE_MOUNTED_EVENT, onMounted)
+  return () => {
+    document.removeEventListener(FENCE_MOUNTED_EVENT, onMounted)
+    cancelIdle?.()
   }
 }
 
@@ -72,13 +97,13 @@ function panelActionSend(ctx: Context, sessionId: SessionId): GenuiPanelInjected
       if (conversation === undefined) return
       const payloadText = Object.keys(payload).length === 0
         ? ''
-        : ` Component data: ${JSON.stringify(payload)}`
-      void conversation.send(`[genui-action] ${action}. The user just triggered the action "${action}" in the panel; act on the component data accordingly, and emit only one panel:true dsh-ui fence to update the panel. Reply with at most one line of confirmation of 10 words or fewer (e.g. "Refreshed") — no explanation, no ordinary fence.${payloadText}`).catch((err: unknown) => {
+        : t('action.payload', { json: JSON.stringify(payload) })
+      void conversation.send(t('action.panel', { action, payload: payloadText })).catch((err: unknown) => {
         // A failed prompt (session gone, agent busy) drops the action; the
         // panel stays interactive — the component is not disabled. Log the
         // failure WITHOUT the action payload or any secret values (the
         // message may contain field content).
-        console.warn(`[genui] Failed to send panel action "${action}" (session ${sessionId}):`, err instanceof Error ? err.message : String(err))
+        console.warn(`[genui] 面板动作 "${action}" 发送失败（session ${sessionId}）：`, err instanceof Error ? err.message : String(err))
       })
     },
     insertTemplate: (text) => {
@@ -94,24 +119,23 @@ function panelActionSend(ctx: Context, sessionId: SessionId): GenuiPanelInjected
   }
 }
 
-/** Relay a `/panel <instruction>` instruction to the model: the scoped conversation
+/** Relay a `/panel <指令>` instruction to the model: the scoped conversation
  * send with an explicit panel-only directive, so the model replaces the
  * default panel with content tailored to the request. */
 function sendPanelInstruction(ctx: Context, sessionId: SessionId, instruction: string): void {
   const scoped = ctx.sessions.scope(sessionId)
   const conversation = scoped?.get('conversation') as IConversation | undefined
   if (conversation === undefined) return
-  void conversation.send(`The user ran /panel and requested: ${instruction}. Emit only one panel:true dsh-ui fence to update the session panel, tailored to the request; reply with at most one line of confirmation of 10 words or fewer (e.g. "Updated") — no explanation, no ordinary fence.`).catch((err: unknown) => {
+  void conversation.send(`用户执行了 /panel 并请求：${instruction}。请只输出一个 panel:true 的 dsh-ui 围栏来更新会话面板，内容按请求定制；回复文本至多一行 10 字以内的确认（如"已更新"），不要解释、不要普通围栏。`).catch((err: unknown) => {
     // A failed prompt drops the instruction; the default panel stays
     // visible. Log without the instruction text (may contain secrets).
-    console.warn(`[genui] Failed to send /panel instruction (session ${sessionId}):`, err instanceof Error ? err.message : String(err))
+    console.warn(`[genui] /panel 指令发送失败（session ${sessionId}）：`, err instanceof Error ? err.message : String(err))
   })
 }
 
 /**
  * Inline-fence action relay (DOM channel): the same message template the
- * contract host's sendGenuiAction uses, so the model sees one identical
- * [genui-action] contract on both channels.
+ * host action message template, so inline actions reach the model consistently.
  */
 function sendInlineGenuiAction(ctx: Context, sessionId: SessionId, action: string, payload: Record<string, unknown>): void {
   const scoped = ctx.sessions.scope(sessionId)
@@ -119,48 +143,39 @@ function sendInlineGenuiAction(ctx: Context, sessionId: SessionId, action: strin
   if (conversation === undefined) return
   const payloadText = Object.keys(payload).length === 0
     ? ''
-    : ` Component data: ${JSON.stringify(payload)}`
-  void conversation.send(`[genui-action] ${action}. The user just triggered the action "${action}" in the interface; act on the component data accordingly and use dsh-ui to output the updated interface.${payloadText}`).catch(() => {
+    : t('action.payload', { json: JSON.stringify(payload) })
+  void conversation.send(t('action.inline', { action, payload: payloadText })).catch(() => {
     // A failed prompt (session gone, agent busy) drops the action;
     // the UI stays interactive — the component is not disabled.
   })
 }
 
-/** Visual-regression flag: `scripts/e2e-visual.mts` sets
- * `window.__DSH_GENUI_E2E__ = true` via an init script BEFORE this bundle
- * boots, which pins the DOM channel even on hosts that ship the registry
- * extension point. The DOM channel is what lets the harness inject a gallery
- * fence into an empty scratch profile and screenshot the real React tree
- * without a model round trip; production pages never set the flag. */
-function forcedDomChannel(): boolean {
-  return (globalThis as { __DSH_GENUI_E2E__?: boolean }).__DSH_GENUI_E2E__ === true
-}
-
-/** Cordis client entry: register the fence renderer on boot, the keyed
+/** Cordis client entry: install the fence renderer on boot, the keyed
  * toolview for the render_ui tool, and the session panel dock; returning the
  * disposers lets cordis tear all registrations down on plugin unload. */
 export function apply(ctx: Context): () => void {
-  // Fence channel selection: the registry extension point when the host
-  // ships it (contract line), the DOM observer otherwise (pristine line).
-  // One plugin build serves both deployments.
+  // Provider 提交所属线程身份和专属操作路由；DOM renderer 继续忽略这些 surface。
+  ctx.inject(['genuiSidechat'], scope => {
+    scope.effect(() => installSidechatAdapter(scope.get('genuiSidechat') as Partial<SidechatSurfaceService> | undefined), 'genui: host sidechat surface')
+  })
+  // BetterSidebar 保留现有 service，并沿用通用 sidechat surface contract。
+  ctx.inject(['betterSidebar'], scope => {
+    scope.effect(() => installSidechatAdapter(scope.get('betterSidebar') as Partial<SidechatSurfaceService> | undefined), 'genui: sidechat surface')
+  })
   // Language: follow the host's DSH language preference when the deployment
   // ships the locale service, otherwise fall back to browser detection. Read
-  // OPTIONALLY (never declared in `inject`) so a pristine host without the
+  // OPTIONALLY (never declared in `inject`) so a host without the
   // service still renders — a declared-but-absent service would park the
   // fiber forever and kill all GenUI rendering.
   const localeDispose = bridgeHostLocale(ctx)
-  const registerFn = (primitives as unknown as HostFenceExt).registerFenceRenderer
-  const useRegistry = typeof registerFn === 'function' && !forcedDomChannel()
-  const channel = useRegistry ? 'registry' : 'dom'
-  console.info(`[genui] client active; fence-channel=${channel}`)
-  const disposers: Array<() => void> = useRegistry
-    ? [localeDispose, registerFn!('dsh-ui', renderGenuiFence), registerFn!('svg', renderSvgFence)]
-    : [localeDispose, installDomFenceRenderer(ctx, (sessionId, action, payload) => sendInlineGenuiAction(ctx, sessionId, action, payload))]
-  // Idle prefetch of the lazy engine assets: the browser downloads them at
-  // LOW priority whenever the page is idle, so the first mermaid/3D node in
-  // a session usually hits a warm cache instead of paying the fetch on first
-  // use. Never blocks first paint; the loader still handles a miss.
-  prefetchGenuiAssets()
+  const fileLinkAvailability = createFileLinkAvailability(ctx as unknown as FileLinkCordisContext)
+  console.info('[genui] client active; fence-channel=dom')
+  // Armed before the renderer so a fence mounted during install is not missed.
+  const disposers: Array<() => void> = [
+    localeDispose,
+    prefetchOnFirstFence(),
+    installDomFenceRenderer(ctx, (sessionId, action, payload) => sendInlineGenuiAction(ctx, sessionId, action, payload), fileLinkAvailability),
+  ]
   // Achievement toasts (0.9.5): a body-level stack independent of the panel.
   disposers.push(mountAchievementToasts())
   // Keyed toolview: the harness dispatches 'tool.call.toolview' by wire tool
@@ -170,7 +185,13 @@ export function apply(ctx: Context): () => void {
   disposers.push(ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
     name: 'tool.call.toolview',
     key: 'render_ui',
-  }, GenuiToolView)))
+  }, (props: ToolCallViewProps) => withFileLinkContext(
+    ctx as unknown as FileLinkCordisContext,
+    fileLinkAvailability,
+    props.sessionId,
+    false,
+    createElement(GenuiToolView, props),
+  ))))
   // Session panel dock: a session-scoped, always-present seat above the
   // composer (TodoDock posture). Renders the session's latest render_ui
   // spec in place; absent spec = no panel.
@@ -178,12 +199,15 @@ export function apply(ctx: Context): () => void {
     name: 'conversation.input.dock',
     id: 'genui-panel',
     order: 50,
-    inject: (sessionId: SessionId): GenuiPanelInjected => panelActionSend(ctx, sessionId),
+    inject: (sessionId: SessionId): GenuiPanelInjected => ({
+      ...panelActionSend(ctx, sessionId),
+      fileLinkContext: { ctx: ctx as unknown as FileLinkCordisContext, availability: fileLinkAvailability },
+    }),
   }, GenuiPanel)))
   // /panel slash command: a deterministic, client-side entry point that
   // opens the panel dock (publishes the default spec + expand request),
   // clears it (/panel clear), or relays an instruction to the model
-  // (/panel <instruction>) so the panel gets tailored content.
+  // (/panel <指令>) so the panel gets tailored content.
   //
   // inputTriggers is subscribed via cordis OPTIONAL injection (ctx.inject),
   // NOT a one-shot ctx.get() at apply time: the service is typically
@@ -206,6 +230,8 @@ export function apply(ctx: Context): () => void {
   }
 }
 
+export type { SidechatSurface, SidechatSurfaceService } from './sidechat-surface.tsx'
+
 // Browser services the client entry needs: the slots registry (toolview +
 // dock) and sessions (scoped conversation send behind actions). This
 // declaration is what the host's fiber inject waiting uses — without it
@@ -222,7 +248,6 @@ export function apply(ctx: Context): () => void {
 // itself never depends on the service either way.
 export const inject = ['slots', 'sessions']
 
-// Re-export the registry renderer for the test suite (setup.ts registers it
-// exactly like apply() does on contract hosts).
-export { renderGenuiFence }
-export type { GenuiFenceContext } from './fence-render.tsx'
+/** Trusted host configuration, separate from model-authored JSON. */
+export { GenuiMapContext, setGenuiMapConfig } from './map-config.ts'
+export type { GenuiMapConfig, GenuiMapStyle } from './map-config.ts'

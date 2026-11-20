@@ -7,7 +7,7 @@ import { validateGenuiSpec } from '../src/client/guard.ts'
 import type { GenuiSpec } from '../src/client/spec.ts'
 
 const SAMPLE: GenuiSpec = {
-  title: 'Sample',
+  title: '测试',
   items: [
     { type: 'text', content: 'hi' },
     { type: 'chart', data: [{ label: 'a', value: 1 }] },
@@ -19,14 +19,14 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-describe('achievement rules', () => {
-  it('has 12 achievements with unique ids', () => {
+describe('成就规则', () => {
+  it('12 个成就且 id 唯一', () => {
     const ids = new Set(ACHIEVEMENTS.map(a => a.id))
     expect(ids.size).toBe(ACHIEVEMENTS.length)
     expect(ACHIEVEMENTS.length).toBeGreaterThanOrEqual(10)
   })
 
-  it('unlocks only once a threshold is reached', () => {
+  it('累计到阈值才解锁', () => {
     expect(checkAchievements(emptyState(), {})).toEqual([])
     const s1 = { ...emptyState(), fences: 1 }
     expect(checkAchievements(s1, {}).map(a => a.id)).toContain('first-fence')
@@ -35,24 +35,24 @@ describe('achievement rules', () => {
     expect(unlocks.map(a => a.id)).toContain('fence-50')
   })
 
-  it('never reports an already-unlocked achievement twice', () => {
+  it('已解锁不重复出现', () => {
     const s1 = { ...emptyState(), fences: 5 }
     const once = checkAchievements(s1, { 'first-fence': 1, 'fence-5': 1 })
     expect(once.map(a => a.id)).toEqual([])
   })
 })
 
-describe('recording and persistence', () => {
-  it('recordFence dedupes by fingerprint (same content counts once)', () => {
+describe('埋点与持久化', () => {
+  it('recordFence 按指纹去重（同内容只计一次）', () => {
     recordFence(SAMPLE)
     recordFence(SAMPLE)
     expect(getAchievementSnapshot().state.fences).toBe(1)
-    // Different content counts again.
+    // 不同内容再计
     recordFence({ title: 'b', items: [{ type: 'text', content: 'x' }] })
     expect(getAchievementSnapshot().state.fences).toBe(2)
   })
 
-  it('counts chart/advanced nodes (delta assertions, avoiding cross-test state)', () => {
+  it('图表/高级节点计数（增量断言，避免跨用例状态）', () => {
     const before = getAchievementSnapshot().state
     recordFence({ title: 'chart-test', items: [
       { type: 'chart', data: [{ label: 'a', value: 1 }] },
@@ -63,13 +63,13 @@ describe('recording and persistence', () => {
     expect(s.advanced - before.advanced).toBe(1)
   })
 
-  it('persists state across a reload', () => {
+  it('持久化：load 后保留', () => {
     recordFence(SAMPLE)
     const saved = localStorage.getItem('dsh.genui.achievements')
     expect(saved).toBeTruthy()
   })
 
-  it('never writes the spec body behind a dedupe fingerprint (privacy: localStorage holds no content)', () => {
+  it('去重指纹不落盘 spec 原文（隐私：localStorage 绝不含内容）', () => {
     const marker = 'PRIVACY-MARKER-9f2c'
     recordFence({ title: 't', items: [{ type: 'text', content: marker }] })
     const seen = localStorage.getItem('dsh.genui.achievements.seen') ?? ''
@@ -79,7 +79,7 @@ describe('recording and persistence', () => {
     expect(seen).toBeTruthy()
   })
 
-  it('counts interactions, panels and templates', () => {
+  it('交互/面板/模板埋点', () => {
     recordInteraction()
     recordPanel()
     recordTemplateUse()
@@ -88,7 +88,7 @@ describe('recording and persistence', () => {
     expect(getAchievementSnapshot().state.templates).toBe(1)
   })
 
-  it('queues an unlock and notifies subscribers', () => {
+  it('解锁进队列并通知订阅者', () => {
     let notified = 0
     const off = subscribeAchievements(() => { notified += 1 })
     recordFence(SAMPLE)
@@ -99,8 +99,8 @@ describe('recording and persistence', () => {
   })
 })
 
-describe('achievements page spec', () => {
-  it('produces a spec that passes the renderer guard', () => {
+describe('成就页 spec', () => {
+  it('生成的 spec 通过渲染器守卫', () => {
     const spec = buildAchievementsSpec({ ...emptyState(), fences: 5, charts: 2 }, { 'first-fence': 1 })
     const v = validateGenuiSpec(spec)
     expect(v.ok, v.errors.join('; ')).toBe(true)

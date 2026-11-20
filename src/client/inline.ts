@@ -2,7 +2,8 @@
 import { createElement, useLayoutEffect, useRef, type ReactNode } from 'react'
 import katex from 'katex'
 import css from './GenuiBlock.module.css'
-import { safeHref } from './genui-runtime/value-utils.ts'
+import { classifyLinkTarget } from './file-link.ts'
+import { FileLink } from './file-link-context.tsx'
 
 /** KaTeX owns this span's children; React owns the span and its lifecycle.
  * The host's ui-primitives already supplies KaTeX CSS/fonts, including embeds. */
@@ -20,9 +21,13 @@ function InlineMath({ source, display }: { source: string; display: boolean }) {
 
 // Code is literal. TeX tokens are opaque to emphasis/link parsing; the other
 // rich-text tokens recurse so **$x$** and ==\\(x\\)== work without nested DOM roots.
-// A real newline in the string is its own token rendered as <br>, so text
-// fields express a line break via JSON "\n" — no HTML parsing, and the
-// single-line (nowrap) chrome classes never contain one.
+// A real newline in the string stays a REAL newline in the DOM — not a `<br>`.
+// A `<br>` paints a visual break but contributes nothing to `textContent`, so
+// selecting and copying a multi-line cell yielded one run-on line: a pasted
+// `python - <<'PY' … PY` heredoc lost its line structure and could no longer
+// run. Real newlines survive both the paint and the copy path; containers that
+// can carry them declare `white-space: pre-line` (prose) or `pre-wrap` (code).
+// No HTML parsing happens here, only the model's `\n`.
 const INLINE = /(?<!`)`[^`\n]+`(?!`)|\\\\|\\\$|(?<![\\$])\$\$(?:\\.|[^\\])*?\$\$|\\\[(?:\\(?!\])[^]|[^\\])*?\\\]|\\\((?:\\(?!\))[^]|[^\\])*?\\\)|(?<![\\$])\$(?!\s|\$)(?:\\.|[^$\\\n])+(?<!\s)\$(?!\d|\$)|\*\*[\s\S]+?\*\*|==[\s\S]+?==|\[[^\]\n]+\]\([^)\s]+\)|\r?\n/g
 const FENCE_MARKER = /`{3,}|~{3,}/g
 
@@ -31,7 +36,7 @@ export function hasInlineMarkup(text: string): boolean {
 }
 
 /** Render safe phrasing content, usable in headings, buttons and labels too. */
-export function renderInline(text: string, allowLinks = true, depth = 0): ReactNode {
+export function renderInline(text: string, allowLinks: boolean | 'file' = true, depth = 0): ReactNode {
   if (typeof text !== 'string' || text === '' || !hasInlineMarkup(text) || depth >= 8) return text
   const segments: ReactNode[] = []
   let fenceEnd = 0
@@ -48,7 +53,7 @@ export function renderInline(text: string, allowLinks = true, depth = 0): ReactN
       }
     }
     if (openingStart > fenceEnd) segments.push(renderInline(text.slice(fenceEnd, openingStart), allowLinks, depth))
-    // The fence and the code, newlines, and inline markers inside it stay verbatim.
+    // 围栏及其中的代码、换行和行内标记都保持原文。
     fenceEnd = closingEnd ?? text.length
     segments.push(text.slice(openingStart, fenceEnd))
     if (closingEnd === undefined) break
@@ -65,7 +70,10 @@ export function renderInline(text: string, allowLinks = true, depth = 0): ReactN
     const token = match[0]
     if (index > last) out.push(text.slice(last, index))
     if (token === '\n' || token === '\r\n') {
-      out.push(createElement('br', { key: key++ }))
+      // Keep the newline character itself: it is what `textContent`,
+      // `Selection.toString()` and the clipboard carry. `pre-line`/`pre-wrap`
+      // on the owning container turns it into a visible line break.
+      out.push('\n')
     } else if (token.startsWith('`')) {
       out.push(createElement('code', { key: key++, className: css.inlineCode }, token.slice(1, -1)))
     } else if (token === '\\$' || token === '\\\\') {
@@ -86,10 +94,20 @@ export function renderInline(text: string, allowLinks = true, depth = 0): ReactN
       if (parts === null) {
         out.push(token)
       } else {
-        const href = safeHref(parts[2])
-        out.push(href === undefined || !allowLinks ? renderInline(parts[1]!, false, depth + 1) : createElement('a', {
-          key: key++, className: css.inlineLink, href, target: '_blank', rel: 'noreferrer noopener',
-        }, renderInline(parts[1]!, false, depth + 1)))
+        const target = classifyLinkTarget(parts[2])
+        const label = renderInline(parts[1]!, false, depth + 1)
+        if (target.type === 'external' && allowLinks === true) {
+          out.push(createElement('a', {
+            key: key++, className: css.inlineLink, href: target.href, target: '_blank', rel: 'noreferrer noopener',
+          }, label))
+        } else if (target.type === 'file' && allowLinks !== false) {
+          out.push(createElement(FileLink, {
+            key: key++, path: target.file.path, label: parts[1]!,
+            ...(target.file.line === undefined ? {} : { line: target.file.line }),
+          }, label))
+        } else {
+          out.push(label)
+        }
       }
     }
     last = index + token.length

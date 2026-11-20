@@ -2,7 +2,7 @@
 // Pure node tests — no DOM. The fence path runs every body through
 // `repairGenuiSpec` before rendering, so these invariants protect the UI.
 import { describe, expect, it } from 'vitest'
-import { countDeclaredGenuiNodes, countGenuiNodes, repairGenuiSpec, validateGenuiSpec } from '../src/client/guard.ts'
+import { countDeclaredGenuiNodes, countGenuiNodes, isRenderableProcess, partialRepairGenuiSpec, processGenuiSpec, repairGenuiSpec, validateGenuiSpec } from '../src/client/guard.ts'
 import { GENUI_LIMITS } from '../src/client/genui-runtime/index.ts'
 import { type GenuiNode, type GenuiList, isGenuiSpec, parseGenuiSpec } from '../src/client/spec.ts'
 
@@ -46,7 +46,7 @@ describe('repairGenuiSpec: root shape', () => {
 
 describe('repairGenuiSpec: single-component roots', () => {
   it('wraps a bare component root into a col (documented fence vocabulary)', () => {
-    const spec = repairGenuiSpec({ type: 'callout', tone: 'info', title: 'Key observation', content: 'Hello' })
+    const spec = repairGenuiSpec({ type: 'callout', tone: 'info', title: '核心观察', content: '你好' })
     expect(spec).not.toBeNull()
     // The repaired GenuiSpec carries no `type` (root spec field set) — the
     // observable wrap effect is the items array holding the bare component.
@@ -119,16 +119,16 @@ describe('repairGenuiSpec: node-level healing', () => {
     // silently dropping every option (empty list = "options not rendered").
     const spec = repairGenuiSpec({ items: [
       { type: 'radio', label: 'Q', group: 'q', options: [
-        { label: 'A plan', description: 'Description' },
-        { value: 'B plan' },
-        { title: 'C plan' },
+        { label: '甲方案', description: '说明' },
+        { value: '乙方案' },
+        { title: '丙方案' },
         { x: 1 },
       ] },
-      { type: 'select', options: [{ label: 'Option A' }, { label: 'Option B' }] },
+      { type: 'select', options: [{ label: '选项A' }, { label: '选项B' }] },
     ] })
     const [radio, select] = spec!.items as Array<{ options?: string[] }>
-    expect(radio.options).toEqual(['A plan', 'B plan', 'C plan', '{"x":1}'])
-    expect(select.options).toEqual(['Option A', 'Option B'])
+    expect(radio.options).toEqual(['甲方案', '乙方案', '丙方案', '{"x":1}'])
+    expect(select.options).toEqual(['选项A', '选项B'])
   })
 
   it('clamps out-of-range numbers', () => {
@@ -192,6 +192,22 @@ describe('repairGenuiSpec: node-level healing', () => {
     expect(table.rows).toHaveLength(GENUI_LIMITS.maxTableRows)
   })
 
+  it('preserves table, list, and file-tree caps while skipping invalid entries', () => {
+    const rows = Array.from({ length: GENUI_LIMITS.maxTableRows }, (_, index) => [`row ${index}`])
+    const listItems = Array.from({ length: GENUI_LIMITS.maxListItems }, (_, index) => `item ${index}`)
+    const treeItems = Array.from({ length: GENUI_LIMITS.maxListItems }, (_, index) => ({ name: `node ${index}`, type: 'file' }))
+    const spec = repairGenuiSpec({ items: [
+      { type: 'table', columns: ['value'], rows: [null, ...rows] },
+      { type: 'list', items: [null, ...listItems] },
+      { type: 'file-tree', items: [null, ...treeItems] },
+    ] })
+    const [table, list, tree] = spec!.items as Array<{ rows?: unknown[]; items?: unknown[] }>
+
+    expect(table.rows).toHaveLength(GENUI_LIMITS.maxTableRows)
+    expect(list.items).toHaveLength(GENUI_LIMITS.maxListItems)
+    expect(tree.items).toHaveLength(GENUI_LIMITS.maxListItems)
+  })
+
   it('caps total node count', () => {
     const spec = repairGenuiSpec({ items: Array.from({ length: 500 }, (_, i) => text(`n${i}`)) })
     expect(spec!.items).toHaveLength(GENUI_LIMITS.maxNodes)
@@ -212,6 +228,89 @@ describe('repairGenuiSpec: node-level healing', () => {
     expect(depth).toBe(GENUI_LIMITS.maxDepth + 1)
   })
 
+  it('drops a json node whose value nests past the renderer limit', () => {
+    const nest = (depth: number): unknown => {
+      let value: unknown = 'leaf'
+      for (let i = 0; i < depth; i++) value = { level: value }
+      return value
+    }
+    // The reported input (~5k levels / ~30 KB) used to pass validation and only
+    // blew up when the block fingerprints stringified the rendered spec.
+    const pathological = processGenuiSpec({ items: [{ type: 'json', value: nest(5000) }] })
+    expect(() => JSON.stringify(pathological.spec)).not.toThrow()
+    expect(pathological.errors.some(error => error.includes(`exceeds JSON limit ${GENUI_LIMITS.maxJsonDepth}`))).toBe(true)
+    expect(pathological.renderedNativeCount).toBe(0)
+
+    // Boundary: at the limit the value must survive verbatim; one level deeper
+    // cannot be serialized/drawn and is dropped by repair.
+    const atLimit = nest(GENUI_LIMITS.maxJsonDepth)
+    const accepted = processGenuiSpec({ items: [{ type: 'json', value: atLimit }] })
+    expect(accepted.errors).toEqual([])
+    expect(accepted.spec?.items[0]).toEqual({ type: 'json', value: atLimit })
+  })
+
+  it('rejects an over-deep json value in direct validation and repair', () => {
+    const tooDeep = (() => {
+      let value: unknown = 1
+      for (let i = 0; i <= GENUI_LIMITS.maxJsonDepth; i++) value = { a: value }
+      return value
+    })()
+    expect(validateGenuiSpec({ items: [{ type: 'json', value: tooDeep }] })).toEqual({
+      ok: false,
+      errors: [`items[0].value nesting depth exceeds JSON limit ${GENUI_LIMITS.maxJsonDepth}; flatten or split the value`],
+    })
+    expect(repairGenuiSpec({ items: [{ type: 'json', value: tooDeep }] })).toEqual({ items: [] })
+    // Shallow payloads keep their exact shape (arrays, scalars, nesting).
+    const shallow = { name: 'dsh', tags: ['a', 'b'], nested: { ok: true } }
+    expect(repairGenuiSpec({ items: [{ type: 'json', value: shallow }] })).toEqual({ items: [{ type: 'json', value: shallow }] })
+  })
+
+  it('drops an over-deep object option instead of stringifying it', () => {
+    const junk = (() => {
+      let value: unknown = 1
+      for (let i = 0; i < 5000; i++) value = { a: value }
+      return value
+    })()
+    // `select`/`radio`/`segmented-control` accept object options and fall back
+    // to their JSON text as the label; that stringify had no depth bound.
+    expect(() => processGenuiSpec({ items: [{ type: 'select', options: ['a', junk, 'b'] }] })).not.toThrow()
+    const processed = processGenuiSpec({ items: [{ type: 'select', options: ['a', junk, 'b'] }] })
+    expect(processed.errors).toEqual([])
+    expect(processed.spec?.items[0]).toEqual({ type: 'select', options: ['a', 'b'] })
+    // Labelled object options still become labels, as before.
+    expect(processGenuiSpec({ items: [{ type: 'select', options: [{ label: 'A' }] }] }).spec?.items[0])
+      .toEqual({ type: 'select', options: ['A'] })
+  })
+
+  it.each(['select', 'radio'] as const)('preserves option identity after dropping a deep object: %s', type => {
+    let deep: unknown = 'leaf'
+    for (let i = 0; i <= GENUI_LIMITS.maxJsonDepth; i++) deep = { a: deep }
+    for (const selected of [0, 2, 3]) {
+      const result = processGenuiSpec({ items: [{
+        type, options: ['A', deep, 'C', 'D'], selected,
+        ...(type === 'radio' ? { answer: selected } : {}),
+      }] })
+      const index = selected === 0 ? 0 : selected - 1
+      expect(result.spec?.items[0]).toEqual({
+        type, options: ['A', 'C', 'D'], selected: index,
+        ...(type === 'radio' ? { answer: index } : {}),
+      })
+    }
+    const removed = processGenuiSpec({ items: [{
+      type, options: ['A', deep, 'C'], selected: 1,
+      ...(type === 'radio' ? { answer: 1 } : {}),
+    }] })
+    expect(removed.spec?.items[0]).toEqual({ type, options: ['A', 'C'] })
+  })
+
+  it('does not retarget a capped option or change a label-based radio answer', () => {
+    const options = Array.from({ length: GENUI_LIMITS.maxOptions + 1 }, (_, i) => `option-${i}`)
+    const capped = repairGenuiSpec({ items: [{ type: 'radio', options, selected: GENUI_LIMITS.maxOptions, answer: GENUI_LIMITS.maxOptions }] })
+    expect(capped?.items[0]).toEqual({ type: 'radio', options: options.slice(0, GENUI_LIMITS.maxOptions) })
+    expect(repairGenuiSpec({ items: [{ type: 'radio', options: ['A', null, 'C'], selected: 2, answer: 'C' }] })?.items[0])
+      .toEqual({ type: 'radio', options: ['A', 'C'], selected: 1, answer: 'C' })
+  })
+
   it('drops invalid chart without data or series but keeps series-only charts', () => {
     const spec = repairGenuiSpec({ items: [
       { type: 'chart' },
@@ -221,11 +320,10 @@ describe('repairGenuiSpec: node-level healing', () => {
     expect((spec!.items[0] as { type: string }).type).toBe('chart')
   })
 
-  it('passes unknown node types through untouched (custom components)', () => {
+  it('drops unsupported node types because the renderer has no custom component registry', () => {
     const custom = { type: 'my-widget', flavor: 'pink', data: { a: [1, 2] } }
     const spec = repairGenuiSpec({ items: [custom] })
-    expect(spec!.items).toHaveLength(1)
-    expect(spec!.items[0]).toEqual(custom)
+    expect(spec!.items).toEqual([])
   })
 
   it('sanitizes raw scalars inside collections', () => {
@@ -244,15 +342,15 @@ describe('repairGenuiSpec: table / tabs tolerance (issue #42)', () => {
   it('flattens object columns and object-array rows (data alias) into a real table', () => {
     const spec = repairGenuiSpec({ items: [
       { type: 'table',
-        columns: [{ title: 'Name', key: 'name' }, { title: 'Count', dataIndex: 'count' }],
+        columns: [{ title: '名称', key: 'name' }, { title: '数量', dataIndex: 'count' }],
         data: [
-          { name: 'Apple', count: 3, extra: 'x' },
-          { name: 'Pear', count: null },
+          { name: '苹果', count: 3, extra: 'x' },
+          { name: '梨', count: null },
         ] },
     ] })
     const table = spec?.items[0] as { columns: string[], rows: Array<Array<string | number>> }
-    expect(table.columns).toEqual(['Name', 'Count'])
-    expect(table.rows).toEqual([['Apple', 3], ['Pear', '']])
+    expect(table.columns).toEqual(['名称', '数量'])
+    expect(table.rows).toEqual([['苹果', 3], ['梨', '']])
   })
 
   it('keys object rows by the first row when columns are plain strings', () => {
@@ -266,8 +364,8 @@ describe('repairGenuiSpec: table / tabs tolerance (issue #42)', () => {
   it('accepts tabs[].content as an items alias (array or single component)', () => {
     const spec = repairGenuiSpec({ items: [
       { type: 'tabs', tabs: [
-        { label: 'Tab one', content: [{ type: 'text', content: 'a' }, { type: 'badge', label: 'b' }] },
-        { label: 'Tab two', content: { type: 'text', content: 'c' } },
+        { label: '一', content: [{ type: 'text', content: 'a' }, { type: 'badge', label: 'b' }] },
+        { label: '二', content: { type: 'text', content: 'c' } },
       ] },
     ] })
     const tabs = spec?.items[0] as { tabs: Array<{ label: string, items: unknown[] }> }
@@ -300,6 +398,43 @@ describe('node counting: container descent + declared nodes (issue #42)', () => 
 
   it('countDeclaredGenuiNodes counts a single-component root', () => {
     expect(countDeclaredGenuiNodes({ type: 'callout', content: 'x' })).toBe(1)
+  })
+
+  it('counts and validates nodes nested in table details', () => {
+    const tree = { items: [
+      { type: 'table', columns: ['Item'], rows: [['A']], details: [[{ type: 'input', id: 'note' }]] },
+      { type: 'submit', label: 'Send', action: 'send', groups: ['note'] },
+    ] }
+    expect(countGenuiNodes(tree)).toBe(3)
+    expect(countDeclaredGenuiNodes(tree)).toBe(3)
+    expect(validateGenuiSpec(tree).ok).toBe(true)
+  })
+
+  it('keeps strict detail diagnostics while repairing only the bad child for fences', () => {
+    const tree = { items: [
+      { type: 'table', columns: ['Item'], rows: [['A'], ['B']], details: [[{ type: 'text' }], [{ type: 'input', id: 'note' }]] },
+      { type: 'submit', label: 'Send', action: 'send', groups: ['note'] },
+    ] }
+    const processed = processGenuiSpec(tree)
+    expect(processed.errors).toContain("items[0].details[0][0]: type 'text' requires content or text (string)")
+    expect(isRenderableProcess(processed)).toBe(false)
+    const candidate = partialRepairGenuiSpec(processed)
+    expect(candidate?.items).toEqual([
+      { type: 'table', columns: ['Item'], rows: [['A'], ['B']], details: [null, [{ type: 'input', id: 'note' }]] },
+      tree.items[1],
+    ])
+    expect(countDeclaredGenuiNodes(candidate)).toBe(3)
+    expect(validateGenuiSpec(candidate).ok).toBe(true)
+  })
+
+  it('ignores table details beyond the rendered row count and reports the mismatch', () => {
+    const tree = { items: [
+      { type: 'table', columns: ['A'], rows: [['1']], details: [null, [{ type: 'input', id: 'ghost' }]] },
+      { type: 'submit', label: 'Send', action: 'send', groups: ['ghost'] },
+    ] }
+    expect(countGenuiNodes(tree)).toBe(2)
+    expect(countDeclaredGenuiNodes(tree)).toBe(2)
+    expect(validateGenuiSpec(tree).errors).toContain('items[0].details must not contain more entries than rows')
   })
 })
 
@@ -402,14 +537,14 @@ describe('repairGenuiSpec: list nodes', () => {
     ])
   })
 
-  it('prefers the title form when an object carries both title and type', () => {
+  it('treats an object with both title and type as a typed node', () => {
     const spec = repairGenuiSpec({
       items: [
         { type: 'list', items: [{ title: 'T', desc: 'D', type: 'badge', label: 'B' }] },
       ],
     })
     const [list] = spec!.items as Array<{ items: GenuiList['items'] }>
-    expect(list.items).toEqual([{ title: 'T', desc: 'D' }])
+    expect(list.items).toEqual([{ type: 'badge', label: 'B' }])
   })
 
   it('countGenuiNodes includes typed list children', () => {
@@ -461,7 +596,7 @@ describe('validateGenuiSpec: diagnostics', () => {
     expect(result.errors.join('\n')).toContain(`${GENUI_LIMITS.maxNodes} nodes`)
   })
 
-  it('flags unknown types as custom-renderer warnings', () => {
+  it('rejects unknown types with a component diagnostic', () => {
     const result = validateGenuiSpec({ items: [{ type: 'my-widget' }] })
     expect(result.ok).toBe(false)
     expect(result.errors.join('\n')).toContain("unknown type 'my-widget'")

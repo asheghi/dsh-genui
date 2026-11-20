@@ -10,7 +10,39 @@ const tool = createRenderUiTool()
 
 const text = (content: string) => ({ type: 'text', content })
 
+describe('validated fence delivery', () => {
+  it('returns an exact validated JSON body when native projection is unavailable', async () => {
+    const spec = { computed: [{ id: 'total', expr: 'people*30+60' }], items: [
+      { type: 'input', id: 'people', inputType: 'number', value: '8' },
+      { type: 'stat', label: '合计', value: '{{total}}' },
+    ] }
+    const value = String(await createValidateDshUiTool().execute({ spec }))
+    expect(value).toContain('next=emit_fence')
+    expect(value).not.toContain('native_fence_json:')
+    const body = value.split('validated_json:\n```\n')[1]?.split('\n```')[0]
+    expect(body).toBeDefined()
+    expect(JSON.parse(body!)).toEqual(processGenuiSpec(spec).spec)
+  })
+
+  it('blocks the table placeholder from the real-model failure before delivery', async () => {
+    const value = String(await createValidateDshUiTool().execute({ spec: {
+      items: [{ type: 'input', id: 'people', value: '8' }, { type: 'table', columns: ['人数'], rows: [['{{people}} 人']] }],
+    } }))
+    expect(value).toContain("references unknown computed field 'people'")
+    expect(value).toContain('next=fix_and_revalidate')
+    expect(value).not.toContain('validated_json:')
+  })
+})
+
 describe('render_ui tool definition', () => {
+  it('keeps channel selection independent of usage frequency and state persistence', () => {
+    const description = JSON.stringify({ description: tool.description, parameters: tool.parameters })
+    expect(description).toContain('current usage preference')
+    expect(description).toContain('Both channels preserve interaction state')
+    expect(description).not.toContain('USE THIS whenever')
+    expect(description).not.toContain('≥3 parallel points')
+  })
+
   it('registers under the render_ui name with an open spec argument', () => {
     expect(tool.name).toBe('render_ui')
     expect(typeof tool.description).toBe('string')
@@ -44,9 +76,19 @@ describe('render_ui tool definition', () => {
 })
 
 describe('render_ui execute', () => {
+  it('rejects oversized SVG with its path and lengths before reporting a valid delivery', async () => {
+    const code = `<svg>${' '.repeat(GENUI_LIMITS.maxCode)}</svg>`
+    const spec = { items: [{ type: 'svg', code }] }
+    const result = String(await createValidateDshUiTool().execute({ spec }))
+    expect(result).toContain('status=invalid')
+    expect(result).toContain(`items[0].code length ${code.length} exceeds SVG limit ${GENUI_LIMITS.maxCode}`)
+    expect(result).toContain('next=fix_and_revalidate')
+    await expect(tool.execute({ spec })).rejects.toThrow('exceeds SVG limit')
+  })
+
   it('returns a render summary for a valid spec', async () => {
-    const value = await tool.execute({ spec: { title: 'Monitoring dashboard', items: [text('a'), { type: 'stat', label: 'CPU', value: '42%' }] } })
-    expect(String(value)).toContain('Monitoring dashboard')
+    const value = await tool.execute({ spec: { title: '监控面板', items: [text('a'), { type: 'stat', label: 'CPU', value: '42%' }] } })
+    expect(String(value)).toContain('监控面板')
     expect(String(value)).toContain('rendered=2')
     expect(String(value)).toContain('reply_language=conversation')
   })
@@ -62,7 +104,7 @@ describe('render_ui execute', () => {
   })
 
   it('unwraps bridge-wrapped spec shapes (transport compatibility)', async () => {
-    const spec = { title: 'bridge compatibility', items: [text('a')] }
+    const spec = { title: '桥接兼容', items: [text('a')] }
     // Observed live: the bridge nests the authored `spec` object inside a
     // wrapper — the serialized text carried by { arguments: "..." } is itself
     // `{ spec: { title, gap, items } }` — so test both with and without the
@@ -70,7 +112,7 @@ describe('render_ui execute', () => {
     const nested = { spec }
     const expectOk = async (args: unknown) => {
       const value = await tool.execute(args as never)
-      expect(String(value)).toContain('bridge compatibility')
+      expect(String(value)).toContain('桥接兼容')
     }
     // Authored shape
     await expectOk({ spec })
@@ -123,8 +165,8 @@ describe('render_ui execute', () => {
           type: 'chart',
           kind: 'line',
           series: [
-            { label: 'This month', data: [{ label: 'Monday', value: 128 }] },
-            { label: 'Last month', data: [{ label: 'Monday', value: 96 }] },
+            { label: '本月', data: [{ label: '周一', value: 128 }] },
+            { label: '上月', data: [{ label: '周一', value: 96 }] },
           ],
         }],
       },
@@ -147,7 +189,7 @@ describe('render_ui execute', () => {
   })
 
   it('includes native-field warnings in a successful render summary', async () => {
-    const value = String(await tool.execute({ spec: { items: [{ type: 'text', content: 'ok', extension: true }] } }))
+    const value = String(await tool.execute({ spec: { items: [{ type: 'text', content: '好', extension: true }] } }))
     expect(value).toContain('status=rendered')
     expect(value).toContain('items[0].extension')
     expect(value).toContain('unknown field')
@@ -175,14 +217,14 @@ describe('render_ui projections', () => {
   })
 
   it('presents pending and completed cards with the spec title', () => {
-    const args = { spec: { title: 'Orders', items: [text('a')] } }
+    const args = { spec: { title: '订单', items: [text('a')] } }
     const call = tool.presentCall!(args)
     expect(call).not.toBeUndefined()
     expect(call!.card).toBe('generic')
-    expect((call as { title: string }).title).toContain('Orders')
+    expect((call as { title: string }).title).toContain('订单')
     const result = tool.presentResult!(args, { isError: false } as never)
     expect(result).not.toBeUndefined()
-    expect((result as { title: string }).title).toContain('Orders')
+    expect((result as { title: string }).title).toContain('订单')
   })
 
   it('falls back to generic presentation for invalid args (replay safety)', () => {
@@ -203,16 +245,43 @@ describe('validate_dsh_ui tool', () => {
   })
 
   it('approves a valid fence body (string or object)', async () => {
-    const good = '{"title":"x","items":[{"type":"text","content":"ok"}]}'
+    const good = '{"title":"x","items":[{"type":"text","content":"好"}]}'
     expect(String(await vtool.execute({ spec: good }))).toContain('status=valid')
     expect(String(await vtool.execute({ spec: JSON.parse(good) }))).toContain('status=valid')
     expect(String(await vtool.execute(good))).toContain('status=valid')
   })
 
+  it.each([
+    { type: 'list', title: '标题', items: [{ title: '条目', desc: '正文' }] },
+    { type: 'chart', kind: 'bars', title: '标题', data: [{ label: 'A', value: 1 }] },
+  ])('requires correction of an unsupported %s field before emitting', async node => {
+    const value = String(await vtool.execute({ spec: { items: [node] } }))
+    expect(value).toContain('warning=unknown_field path="items[0].title"')
+    expect(value).toContain('next=fix_and_revalidate')
+    expect(value).not.toContain('next=emit_fence')
+  })
+
+  it('does not green-light an unknown field after repairing JSON', async () => {
+    const value = String(await vtool.execute({ spec: '{"items":[{"type":"text","content":"正文","extra":true,}],}' }))
+    expect(value).toContain('repair=applied')
+    expect(value).toContain('warning=unknown_field path="items[0].extra"')
+    expect(value).toContain('next=fix_and_revalidate')
+    expect(value).not.toContain('next=emit_repaired_fence')
+  })
+
+  it('accepts correctly escaped quotes in supported components', async () => {
+    const value = String(await vtool.execute({ spec: { items: [
+      { type: 'text', content: '含有 "引号" 的正文' },
+    ] } }))
+    expect(value).toContain('status=valid')
+    expect(value).toContain('next=emit_fence')
+    expect(value).not.toContain('warning=unknown_field')
+  })
+
   it('reports fenced code and Markdown table in canonical inline content', async () => {
     const value = String(await vtool.execute({ spec: JSON.stringify({ items: [
-      { type: 'callout', tone: 'error', title: 'Fence', content: 'Because: ```score = 1 - 0.05 × level ``` so it gets built anyway' },
-      { type: 'callout', tone: 'info', title: 'Table', content: '| Config | Level |\n|---|---|\n| Exception build | 887 |' },
+      { type: 'callout', tone: 'error', title: '围栏', content: '因为：```score = 1 - 0.05 × level ```于是照建不误' },
+      { type: 'callout', tone: 'info', title: '表格', content: '| 配置 | 级数 |\n|---|---|\n| 破例版 | 887 |' },
     ] }) }))
     expect(value).toContain('status=valid')
     expect(value).toContain('rendered=2')
@@ -222,7 +291,7 @@ describe('validate_dsh_ui tool', () => {
 
     const corrected = String(await vtool.execute({ spec: { items: [
       { type: 'code', code: 'score = 1 - 0.05 × level' },
-      { type: 'table', columns: ['Config', 'Level'], rows: [['Exception build', '887']] },
+      { type: 'table', columns: ['配置', '级数'], rows: [['破例版', '887']] },
     ] } }))
     expect(corrected).toContain('status=valid')
     expect(corrected).toContain('next=emit_fence')
@@ -232,8 +301,8 @@ describe('validate_dsh_ui tool', () => {
   it('reports canonical aliases and nested component paths', async () => {
     const value = String(await vtool.execute({ spec: { items: [
       { type: 'callout', desc: '```alias```' },
-      { type: 'tabs', tabs: [{ label: 'Page', items: [{ type: 'text', content: '~~~nested~~~' }] }] },
-      { type: 'table', columns: ['Column'], rows: [['Value']], details: [[{ type: 'keyvalue', pairs: [{ key: 'Key', value: 'a | b\n---|---' }] }]] },
+      { type: 'tabs', tabs: [{ label: '页', items: [{ type: 'text', content: '~~~nested~~~' }] }] },
+      { type: 'table', columns: ['列'], rows: [['值']], details: [[{ type: 'keyvalue', pairs: [{ key: '键', value: 'a | b\n---|---' }] }]] },
     ] } }))
     expect(value).toContain('warning=block_markdown path=items[0].content kind=fenced_code replacement=code')
     expect(value).toContain('warning=block_markdown path=items[1].tabs[0].items[0].content kind=fenced_code replacement=code')
@@ -242,10 +311,10 @@ describe('validate_dsh_ui tool', () => {
   })
 
   it('checks visible labels and table cells without scanning input values', async () => {
-    const value = String(await vtool.execute({ spec: { title: '```Title```', items: [
-      { type: 'button', label: '~~~action~~~', action: '```raw```' },
-      { type: 'table', columns: ['Column'], rows: [['a | b\n---|---']] },
-      { type: 'input', label: 'Input', value: '```raw```', placeholder: '```raw```' },
+    const value = String(await vtool.execute({ spec: { title: '```标题```', items: [
+      { type: 'button', label: '~~~操作~~~', action: '```raw```' },
+      { type: 'table', columns: ['列'], rows: [['a | b\n---|---']] },
+      { type: 'input', label: '输入', value: '```raw```', placeholder: '```raw```' },
     ] } }))
     expect(value).toContain('warning=block_markdown path=title kind=fenced_code replacement=code')
     expect(value).toContain('warning=block_markdown path=items[0].label kind=fenced_code replacement=code')
@@ -255,15 +324,15 @@ describe('validate_dsh_ui tool', () => {
 
   it('ignores index cell content unless a detail toggle displays it', async () => {
     const ignored = String(await vtool.execute({ spec: { items: [{
-      type: 'table', columns: ['#'], types: ['index'], rows: [['```ignored```']],
+      type: 'table', columns: ['序号'], types: ['index'], rows: [['```ignored```']],
     }] } }))
     expect(ignored).toContain('status=valid')
     expect(ignored).toContain('next=emit_fence')
     expect(ignored).not.toContain('warning=block_markdown')
 
     const visible = String(await vtool.execute({ spec: { items: [{
-      type: 'table', columns: ['#'], types: ['index'], rows: [['```visible```']],
-      details: [[{ type: 'text', content: 'Detail' }]],
+      type: 'table', columns: ['序号'], types: ['index'], rows: [['```visible```']],
+      details: [[{ type: 'text', content: '说明' }]],
     }] } }))
     expect(visible).toContain('warning=block_markdown path=items[0].rows[0][0] kind=fenced_code replacement=code')
     expect(visible).toContain('next=fix_and_revalidate')
@@ -278,8 +347,7 @@ describe('validate_dsh_ui tool', () => {
       { type: 'json', value: { type: 'text', content: '```data```' } },
       { type: 'echart', option: { type: 'text', content: '```data```' } },
       { type: 'text', content: 'foo | bar' },
-      { type: 'text', content: 'A | B\nSecond ordinary line' },
-      { type: 'custom-widget', content: '```opaque```' },
+      { type: 'text', content: 'A | B\n普通第二行' },
     ] } }))
     expect(value).toContain('status=valid')
     expect(value).toContain('next=emit_fence')
@@ -289,10 +357,10 @@ describe('validate_dsh_ui tool', () => {
   it('keeps chart category labels free of block Markdown warnings', async () => {
     const value = String(await vtool.execute({ spec: { items: [
       { type: 'chart', data: [
-        { label: 'Version ```alpha```', value: 1 },
+        { label: '版本 ```alpha```', value: 1 },
         { label: 'A | B\n---|---', value: 2 },
       ] },
-      { type: 'chart', kind: 'line', series: [{ label: 'Version', data: [
+      { type: 'chart', kind: 'line', series: [{ label: '版本', data: [
         { label: '~~~alpha~~~', value: 1 },
         { label: 'A | B\n---|---', value: 2 },
       ] }] },
@@ -322,7 +390,7 @@ describe('validate_dsh_ui tool', () => {
   it('warns when declared components were silently dropped (issue #42)', async () => {
     // The table has no recognizable rows/columns at all: repair drops it and
     // the tool must not green-light a half-empty tree.
-    const dropping = '{"items":[{"type":"table","columns":{},"rows":42},{"type":"text","content":"ok"}]}'
+    const dropping = '{"items":[{"type":"table","columns":{},"rows":42},{"type":"text","content":"好"}]}'
     const value = String(await vtool.execute({ spec: dropping }))
     expect(value).toContain('status=invalid')
     expect(value).toContain('declared=2')
@@ -353,13 +421,13 @@ describe('validate_dsh_ui tool', () => {
   })
 
   it('adopts quiz title/choices and still grades against string options', async () => {
-    const node = { type: 'quiz', title: 'Question', choices: ['A', 'B'] }
+    const node = { type: 'quiz', title: '问题', choices: ['甲', '乙'] }
     const value = String(await vtool.execute({ spec: { items: [node] } }))
     expect(value).toContain('status=valid')
     // quiz repair canonicalizes options into `{label}` records (correctness
     // lives per option), so the claim under test is the adopted field names.
     expect(processGenuiSpec({ items: [node] }).repaired?.items).toEqual([
-      { type: 'quiz', question: 'Question', options: [{ label: 'A' }, { label: 'B' }] },
+      { type: 'quiz', question: '问题', options: [{ label: '甲' }, { label: '乙' }] },
     ])
   })
 
@@ -394,7 +462,7 @@ describe('validate_dsh_ui tool', () => {
     // must be named with the field it actually wrote — the aggregate count
     // alone left the model guessing which component was broken.
     const value = String(await vtool.execute({ spec: {
-      items: [{ type: 'callout', title: 'Title only' }, { type: 'text', content: 'ok' }],
+      items: [{ type: 'callout', title: '只有标题' }, { type: 'text', content: '好' }],
     } }))
     expect(value).toContain('[genui-validation]')
     expect(value).toContain('next=fix_and_revalidate')
@@ -404,8 +472,8 @@ describe('validate_dsh_ui tool', () => {
     expect(value).toContain('field=content')
     expect(value).toContain('written=title')
     expect(value).toContain('reply_language=conversation')
-    expect(value).not.toContain('validation failed')
-    expect(value).not.toContain('please fix')
+    expect(value).not.toContain('验证未通过')
+    expect(value).not.toContain('请修正')
     expect(value).not.toContain('node=items[1]')
 
     // A node nested in a container keeps its full path.
@@ -442,7 +510,7 @@ describe('validate_dsh_ui tool', () => {
         items: [{
           type: 'chart',
           kind: 'line',
-          series: [{ label: 'A', data: [{ label: 'Monday', value: 128 }] }],
+          series: [{ label: 'A', data: [{ label: '周一', value: 128 }] }],
         }],
       },
     }))
@@ -481,7 +549,7 @@ describe('validate_dsh_ui tool', () => {
 
   it('keeps chart field validation after repairing fence JSON syntax', async () => {
     const value = String(await vtool.execute({
-      spec: '{"items":[{"type":"chart","variant":"line","data":[{"label":"Monday","value":128}],}],}',
+      spec: '{"items":[{"type":"chart","variant":"line","data":[{"label":"周一","value":128}],}],}',
     }))
     expect(value).toContain('error=invalid_chart_fields')
     expect(value).toContain('items[0].variant is unsupported; use kind')
@@ -493,7 +561,7 @@ describe('validate_dsh_ui tool', () => {
       items: [{
         type: 'chart',
         kind: 'line',
-        data: [{ label: 'Monday', value: 128, extension: true }],
+        data: [{ label: '周一', value: 128, extension: true }],
         extension: { owner: 'another-plugin' },
       }],
     }
@@ -547,13 +615,13 @@ describe('validate_dsh_ui tool', () => {
     expect(value).toContain('error=missing_spec')
   })
 
-  it('reports MISSING closers in the right direction (missing, not extra)', async () => {
+  it('reports MISSING closers in the right direction (缺 not 多)', async () => {
     const value = String(await vtool.execute({ spec: '{"items": [{"type": "text"' }))
     expect(value).toContain('brace_delta=2')
     expect(value).toContain('brace_action=add:2')
   })
 
-  it('reports EXTRA closers in the right direction (extra, not missing)', async () => {
+  it('reports EXTRA closers in the right direction (多 not 缺)', async () => {
     const value = String(await vtool.execute({ spec: '{"items": []}}' }))
     expect(value).toContain('brace_delta=-1')
     expect(value).toContain('brace_action=remove:1')
@@ -575,7 +643,7 @@ describe('validate_dsh_ui tool', () => {
 
   it('returns the AUTO-REPAIRED JSON when the body is repairable', async () => {
     // trailing comma + missing closing brackets — tier-1/tier-2 heal it.
-    const bad = '{"items":[{"type":"text","content":"hello"},],'
+    const bad = '{"items":[{"type":"text","content":"你好"},],'
     const value = String(await vtool.execute({ spec: bad }))
     expect(value).toContain('repair=applied')
     expect(value).toContain('next=emit_repaired_fence')
@@ -584,7 +652,7 @@ describe('validate_dsh_ui tool', () => {
     expect(match).not.toBeNull()
     const repaired = match![1]!
     expect(() => JSON.parse(repaired)).not.toThrow()
-    expect(repaired).toContain('"content":"hello"')
+    expect(repaired).toContain('"content":"你好"')
     expect(repaired).not.toMatch(/,\]/)
   })
 

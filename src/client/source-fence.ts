@@ -1,5 +1,6 @@
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import type { AssistantBlock, ChatNode, ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
+import { normalizeFenceLanguage } from '../shared/fence-language.ts'
 
 export interface SourceFence {
   lang: string | null
@@ -16,10 +17,10 @@ interface MarkdownNode {
 }
 
 /**
- * Read every code fence in Markdown document order.
+ * 按 Markdown 文档顺序读取所有代码围栏。
  *
- * @param markdown - Markdown content of an assistant text block
- * @returns the code fences in the Markdown AST
+ * @param markdown - assistant text block 中的 Markdown 内容
+ * @returns Markdown AST 中的代码围栏
  */
 export function sourceFencesOf(markdown: string): SourceFence[] {
   const fences: SourceFence[] = []
@@ -27,8 +28,9 @@ export function sourceFencesOf(markdown: string): SourceFence[] {
     if (node.type === 'code') {
       const openingOffset = node.position?.start.offset
       const openingLineEnd = openingOffset === undefined ? -1 : markdown.indexOf('\n', openingOffset)
+      const rawLang = node.lang ?? null
       fences.push({
-        lang: node.lang ?? null,
+        lang: rawLang === null ? null : normalizeFenceLanguage(rawLang),
         value: node.value as string,
         openingLineComplete: openingLineEnd >= 0,
       })
@@ -40,10 +42,10 @@ export function sourceFencesOf(markdown: string): SourceFence[] {
 }
 
 /**
- * Read code fences only from the assistant's text blocks.
+ * 只从 assistant 的 text blocks 中读取代码围栏。
  *
- * @param blocks - assistant content blocks provided by ChatSnapshot
- * @returns code fences in content-block order
+ * @param blocks - ChatSnapshot 提供的 assistant 内容块
+ * @returns 按内容块顺序排列的代码围栏
  */
 export function sourceFencesOfAssistant(blocks: readonly AssistantBlock[]): SourceFence[] {
   const fences: SourceFence[] = []
@@ -54,12 +56,12 @@ export function sourceFencesOfAssistant(blocks: readonly AssistantBlock[]): Sour
 }
 
 /**
- * Read the language from the public ChatSnapshot by assistant node key and fence index.
+ * 根据 assistant node key 和围栏序号读取公开 ChatSnapshot 中的 language。
  *
- * @param chat - ChatSnapshot of the current session
- * @param nodeKey - Chat node key for the DOM assistant row
- * @param index - zero-based host code block index within the assistant row
- * @returns the original language; null when the fence has no language, undefined when source is unavailable
+ * @param chat - 当前会话的 ChatSnapshot
+ * @param nodeKey - DOM assistant row 对应的 Chat node key
+ * @param index - assistant row 内从零开始的宿主代码块序号
+ * @returns 规范化后的 language；null 表示围栏没有 language，undefined 表示 source 不可用
  */
 export function sourceLanguageAt(chat: ChatSnapshot | undefined, nodeKey: string, index: number): string | null | undefined {
   const node = chat?.nodes.get(nodeKey)

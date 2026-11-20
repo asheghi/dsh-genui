@@ -18,6 +18,7 @@ import { createChart as lazyCreateChart, type EChartsInstance } from './echarts-
 import { echartEngineFor } from './echarts-engine.ts'
 import { CHART_COLORS } from './blocks/charts.tsx'
 import type { GenuiEChart } from './spec.ts'
+import { useT } from './i18n/index.ts'
 
 /**
  * Categorical fallback palette. The host defines its `--dsw-static-*` tokens on
@@ -46,6 +47,17 @@ function readToken(name: string, fallback: string, el?: HTMLElement | null): str
   return fallback
 }
 
+/** 通过实际计算后的 font-size 获取字号，供 ECharts 的数字字号字段使用。 */
+function readFontSize(name: string, fallback: number, el?: HTMLElement | null): number {
+  if (el === undefined || el === null) return fallback
+  const probe = document.createElement('span')
+  probe.style.fontSize = `var(${name})`
+  el.appendChild(probe)
+  const parsed = Number.parseFloat(getComputedStyle(probe).fontSize)
+  probe.remove()
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
 /** Resolve the host accent and label colors for ECharts theming. */
 function themeColors(el?: HTMLElement | null): {
   accent: string
@@ -54,6 +66,9 @@ function themeColors(el?: HTMLElement | null): {
   labelTertiary: string
   border: string
   bgLayer1: string
+  fontData: number
+  fontMeta: number
+  fontDisplay: number
 } {
   return {
     accent: readToken('--dsw-alias-state-business-primary', '#4f8ef7', el),
@@ -62,13 +77,16 @@ function themeColors(el?: HTMLElement | null): {
     labelTertiary: readToken('--dsw-alias-label-tertiary', '#6b6b6b', el),
     border: readToken('--dsw-alias-border-l1', 'rgba(255,255,255,0.12)', el),
     bgLayer1: readToken('--dsw-alias-bg-layer-1', '#1a1a1e', el),
+    // The --dsl-g-* scale is declared on the .block/.panel roots; the chart
+    // container inherits it. Detached renders fall back to these literals.
+    fontData: readFontSize('--dsl-g-font-data', 12, el),
+    fontMeta: readFontSize('--dsl-g-font-meta', 12.5, el),
+    fontDisplay: readFontSize('--dsl-g-font-display', 28, el),
   }
 }
 
-/** Build a full ECharts option from a preset + the simple data/series shape.
- *  `el` is the chart's own container: theme tokens are resolved against it so
- *  host colours are found wherever the host defines them. */
-function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string, unknown> {
+/** 根据预设和数据生成完整的 ECharts option，并从图表容器读取宿主主题颜色。 */
+export function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string, unknown> {
   const t = themeColors(el)
   // Each palette slot carries its own fallback hue: if the host lacks the
   // static tokens, series must still be distinguishable (the old code fell
@@ -77,7 +95,9 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
     ? [...node.palette]
     : CHART_COLORS.map((c, i) =>
       readToken(c.replace('var(', '').replace(')', ''), SERIES_FALLBACK[i % SERIES_FALLBACK.length]!, el))
-  const data = node.data ?? []
+  // 坐标轴预设保留空位置；独立图形省略缺失值，同时保留真实零值。
+  const independentMarks = ['wordCloud', 'pie', 'gauge', 'funnel', 'treemap'].includes(node.preset ?? '')
+  const data = (node.data ?? []).filter(d => !independentMarks || typeof d.value === 'number' && Number.isFinite(d.value))
   const series = node.series
 
   // Shared tooltip base: renderMode 'richText' prevents ECharts from writing
@@ -87,13 +107,13 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
     renderMode: 'richText',
     backgroundColor: t.bgLayer1,
     borderColor: t.border,
-    textStyle: { color: t.labelPrimary },
+    textStyle: { color: t.labelPrimary, fontSize: t.fontData * 14 / 12 },
     ...extra,
   })
 
   const base = {
     color: colors,
-    textStyle: { color: t.labelSecondary, fontFamily: 'inherit' },
+    textStyle: { color: t.labelSecondary, fontFamily: 'inherit', fontSize: t.fontData },
     backgroundColor: 'transparent',
     grid: { left: 48, right: 16, top: 24, bottom: 32 },
     tooltip: tt({ trigger: 'item' }),
@@ -105,7 +125,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
         ...base,
         series: [{
           type: 'wordCloud',
-          sizeRange: [16, 64],
+          sizeRange: [t.fontData * 16 / 12, t.fontData * 64 / 12],
           rotationRange: [0, 0],
           gridSize: 8,
           textStyle: { fontFamily: 'sans-serif' },
@@ -117,25 +137,25 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
       return {
         ...base,
         tooltip: tt({ trigger: 'item', formatter: '{b}: {c} ({d}%)' }),
-        legend: { bottom: 0, textStyle: { color: t.labelTertiary } },
+        legend: { bottom: 0, textStyle: { color: t.labelTertiary, fontSize: t.fontData } },
         series: [{
           type: 'pie',
           radius: ['40%', '70%'],
           avoidLabelOverlap: true,
           itemStyle: { borderRadius: 6, borderColor: t.bgLayer1, borderWidth: 2 },
-          label: { color: t.labelSecondary },
+          label: { color: t.labelSecondary, fontSize: t.fontData },
           data: data.map(d => ({ name: d.label, value: d.value })),
         }],
       }
     }
     case 'scatter': {
-      // xAxis is 'category' so string labels (e.g. "January") render correctly;
+      // xAxis is 'category' so string labels (e.g. 「一月」) render correctly;
       // the previous `type: 'value'` xAxis could not plot non-numeric labels.
       return {
         ...base,
         tooltip: tt({ trigger: 'item' }),
-        xAxis: { type: 'category', data: data.map(d => d.label), axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
-        yAxis: { type: 'value', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
+        xAxis: { type: 'category', data: data.map(d => d.label), axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
+        yAxis: { type: 'value', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
         series: [{
           type: 'scatter',
           symbolSize: 10,
@@ -147,8 +167,8 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
       return {
         ...base,
         tooltip: tt({ trigger: 'axis' }),
-        xAxis: { type: 'category', data: data.map(d => d.label), axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary } },
-        yAxis: { type: 'value', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
+        xAxis: { type: 'category', data: data.map(d => d.label), axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData } },
+        yAxis: { type: 'value', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
         series: (series ?? [{ label: '', data }]).map((s, i) => ({
           name: s.label,
           type: 'line',
@@ -157,15 +177,15 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
           data: s.data.map(d => d.value),
           ...optItemStyleColor(s.color, i, series),
         })),
-        legend: series !== undefined ? { bottom: 0, textStyle: { color: t.labelTertiary } } : undefined,
+        legend: series !== undefined ? { bottom: 0, textStyle: { color: t.labelTertiary, fontSize: t.fontData } } : undefined,
       }
     }
     case 'line': {
       return {
         ...base,
         tooltip: tt({ trigger: 'axis' }),
-        xAxis: { type: 'category', data: data.map(d => d.label), axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary } },
-        yAxis: { type: 'value', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
+        xAxis: { type: 'category', data: data.map(d => d.label), axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData } },
+        yAxis: { type: 'value', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
         series: (series ?? [{ label: '', data }]).map((s, i) => ({
           name: s.label,
           type: 'line',
@@ -175,7 +195,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
           data: s.data.map(d => d.value),
           ...optItemStyleColor(s.color, i, series),
         })),
-        legend: series !== undefined ? { bottom: 0, textStyle: { color: t.labelTertiary } } : undefined,
+        legend: series !== undefined ? { bottom: 0, textStyle: { color: t.labelTertiary, fontSize: t.fontData } } : undefined,
       }
     }
     case 'radar': {
@@ -183,26 +203,31 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
       // polygon. `data` alone is treated as a single unnamed series.
       const entries = series ?? [{ label: '', data }]
       const indicators = (entries[0]?.data ?? []).map(d => ({ name: d.label, max: undefined as number | undefined }))
-      const max = Math.max(...entries.flatMap(e => e.data.map(d => Number(d.value) || 0)), 1)
+      const completeEntries = entries.flatMap((entry, index) => {
+        const values = entry.data.map(d => typeof d.value === 'number' && Number.isFinite(d.value) ? d.value : null)
+        // 雷达图需要完整坐标；缺失数据不能在原点显示为真实零值。
+        return values.some(value => value === null) ? [] : [{ entry, index, values: values as number[] }]
+      })
+      const max = Math.max(...completeEntries.flatMap(({ values }) => values), 1)
       return {
         ...base,
         tooltip: tt({ trigger: 'item' }),
-        legend: { bottom: 0, textStyle: { color: t.labelTertiary } },
+        legend: { bottom: 0, textStyle: { color: t.labelTertiary, fontSize: t.fontData } },
         radar: {
           indicator: indicators.map(i => ({ name: i.name, max: Math.ceil(max * 1.1) })),
           splitLine: { lineStyle: { color: t.border } },
           splitArea: { show: false },
           axisLine: { lineStyle: { color: t.border } },
-          axisName: { color: t.labelTertiary },
+          axisName: { color: t.labelTertiary, fontSize: t.fontData },
         },
         series: [{
           type: 'radar',
           symbolSize: 5,
           areaStyle: { opacity: 0.12 },
-          data: entries.map((e, i) => ({
-            name: e.label,
-            value: e.data.map(d => Number(d.value) || 0),
-            ...optItemStyleColor(e.color, i, series),
+          data: completeEntries.map(({ entry, index, values }) => ({
+            name: entry.label,
+            value: values,
+            ...optItemStyleColor(entry.color, index, series),
           })),
         }],
       }
@@ -226,8 +251,8 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
           splitLine: { show: false },
           axisLabel: { show: false },
           pointer: { show: false },
-          title: { offsetCenter: [0, '32%'], color: t.labelTertiary, fontSize: 12 },
-          detail: { valueAnimation: true, fontSize: 26, offsetCenter: [0, '2%'], formatter: '{value}', color: t.labelPrimary },
+          title: { offsetCenter: [0, '32%'], color: t.labelTertiary, fontSize: t.fontData },
+          detail: { valueAnimation: true, fontSize: t.fontDisplay, offsetCenter: [0, '2%'], formatter: '{value}', color: t.labelPrimary },
           data: [{ value: Number(d.value) || 0, name: d.label }],
         })),
       }
@@ -236,7 +261,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
       return {
         ...base,
         tooltip: tt({ trigger: 'item', formatter: '{b}: {c}' }),
-        legend: { bottom: 0, textStyle: { color: t.labelTertiary } },
+        legend: { bottom: 0, textStyle: { color: t.labelTertiary, fontSize: t.fontData } },
         series: [{
           type: 'funnel',
           left: '8%',
@@ -244,7 +269,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
           top: 16,
           bottom: 40,
           gap: 2,
-          label: { position: 'inside', color: '#fff', formatter: '{b} {c}' },
+          label: { position: 'inside', color: '#fff', fontSize: t.fontData, formatter: '{b} {c}' },
           itemStyle: { borderWidth: 0 },
           data: data.map(d => ({ name: d.label, value: Number(d.value) || 0 })),
         }],
@@ -260,7 +285,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
           nodeClick: false,
           breadcrumb: { show: false },
           upperLabel: { show: false },
-          label: { color: t.labelPrimary },
+          label: { color: t.labelPrimary, fontSize: t.fontData },
           itemStyle: { borderColor: t.bgLayer1, borderWidth: 2, gapWidth: 2 },
           data: data.map(d => ({ name: d.label, value: Number(d.value) || 0 })),
         }],
@@ -282,7 +307,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
           bottom: 12,
           nodeGap: 12,
           lineStyle: { color: 'gradient', curveness: 0.5, opacity: 0.32 },
-          label: { color: t.labelSecondary },
+          label: { color: t.labelSecondary, fontSize: t.fontData },
           emphasis: { focus: 'adjacency' },
           data: names.map(name => ({ name })),
           links: links.map(l => ({ source: l.from, target: l.to, value: l.value ?? 1 })),
@@ -307,7 +332,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
           type: 'graph',
           layout: 'force',
           roam: true,
-          label: { show: true, color: t.labelSecondary, fontSize: 11 },
+          label: { show: true, color: t.labelSecondary, fontSize: t.fontMeta },
           force: { repulsion: 200, edgeLength: 80 },
           lineStyle: { color: t.border, curveness: 0.1 },
           emphasis: { focus: 'adjacency' },
@@ -321,16 +346,17 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
       // row's labels — the same shape the other presets use.
       const rows = series ?? [{ label: '', data }]
       const cols = (rows[0]?.data ?? []).map(d => d.label)
-      const values = rows.flatMap((row, y) => row.data.map((d, x) => [x, y, Number(d.value) || 0]))
+      const values = rows.flatMap((row, y) => row.data.flatMap((d, x) =>
+        typeof d.value === 'number' && Number.isFinite(d.value) ? [[x, y, d.value]] : []))
       const max = Math.max(...values.map(v => v[2] as number), 1)
       return {
         ...base,
         tooltip: tt({ trigger: 'item', position: 'top' }),
         grid: { left: 64, right: 16, top: 16, bottom: 48 },
-        xAxis: { type: 'category', data: cols, splitArea: { show: false }, axisLabel: { color: t.labelTertiary }, axisLine: { lineStyle: { color: t.border } } },
-        yAxis: { type: 'category', data: rows.map(r => r.label), splitArea: { show: false }, axisLabel: { color: t.labelTertiary }, axisLine: { lineStyle: { color: t.border } } },
-        visualMap: { min: 0, max, calculable: true, orient: 'horizontal', left: 'center', bottom: 0, textStyle: { color: t.labelTertiary } },
-        series: [{ type: 'heatmap', data: values, label: { show: values.length <= 60, color: t.labelPrimary }, itemStyle: { borderColor: t.bgLayer1, borderWidth: 2 } }],
+        xAxis: { type: 'category', data: cols, splitArea: { show: false }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData }, axisLine: { lineStyle: { color: t.border } } },
+        yAxis: { type: 'category', data: rows.map(r => r.label), splitArea: { show: false }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData }, axisLine: { lineStyle: { color: t.border } } },
+        visualMap: { min: 0, max, calculable: true, orient: 'horizontal', left: 'center', bottom: 0, textStyle: { color: t.labelTertiary, fontSize: t.fontData } },
+        series: [{ type: 'heatmap', data: values, label: { show: values.length <= 60, color: t.labelPrimary, fontSize: t.fontData }, itemStyle: { borderColor: t.bgLayer1, borderWidth: 2 } }],
       }
     }
     case 'bigline': {
@@ -341,10 +367,10 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
         grid: { left: 48, right: 20, top: 24, bottom: 56 },
         dataZoom: [
           { type: 'inside', start: 0, end: 45 },
-          { type: 'slider', height: 16, bottom: 8, borderColor: t.border, textStyle: { color: t.labelTertiary } },
+          { type: 'slider', height: 16, bottom: 8, borderColor: t.border, textStyle: { color: t.labelTertiary, fontSize: t.fontData } },
         ],
-        xAxis: { type: 'category', boundaryGap: false, data: data.map(d => d.label), axisLabel: { color: t.labelTertiary }, axisLine: { lineStyle: { color: t.border } } },
-        yAxis: { type: 'value', axisLabel: { color: t.labelTertiary }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
+        xAxis: { type: 'category', boundaryGap: false, data: data.map(d => d.label), axisLabel: { color: t.labelTertiary, fontSize: t.fontData }, axisLine: { lineStyle: { color: t.border } } },
+        yAxis: { type: 'value', axisLabel: { color: t.labelTertiary, fontSize: t.fontData }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
         series: (series ?? [{ label: '', data }]).map((s2, i) => ({
           name: s2.label,
           type: 'line',
@@ -354,7 +380,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
           data: s2.data.map(d => d.value),
           ...optItemStyleColor(s2.color, i, series),
         })),
-        legend: series !== undefined ? { bottom: 26, textStyle: { color: t.labelTertiary } } : undefined,
+        legend: series !== undefined ? { bottom: 26, textStyle: { color: t.labelTertiary, fontSize: t.fontData } } : undefined,
       }
     }
     default: {
@@ -362,8 +388,8 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
       return {
         ...base,
         tooltip: tt({ trigger: 'axis', axisPointer: { type: 'shadow' } }),
-        xAxis: { type: 'category', data: data.map(d => d.label), axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary } },
-        yAxis: { type: 'value', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
+        xAxis: { type: 'category', data: data.map(d => d.label), axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData } },
+        yAxis: { type: 'value', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.labelTertiary, fontSize: t.fontData }, splitLine: { lineStyle: { color: t.border, opacity: 0.5 } } },
         series: (series ?? [{ label: '', data }]).map(s => ({
           name: s.label,
           type: 'bar',
@@ -371,7 +397,7 @@ function presetOption(node: GenuiEChart, el?: HTMLElement | null): Record<string
           itemStyle: { borderRadius: [4, 4, 2, 2], ...(s.color !== undefined ? { color: s.color } : {}) },
           data: s.data.map(d => d.value),
         })),
-        legend: series !== undefined ? { bottom: 0, textStyle: { color: t.labelTertiary } } : undefined,
+        legend: series !== undefined ? { bottom: 0, textStyle: { color: t.labelTertiary, fontSize: t.fontData } } : undefined,
       }
     }
   }
@@ -383,7 +409,28 @@ function optItemStyleColor(color: string | undefined, _i: number, _series: unkno
   return color !== undefined ? { itemStyle: { color } } : {}
 }
 
+/** Refresh typography without replaying preset data or interactive defaults. */
+function fontSizeOption(option: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(option)) {
+    if (key === 'fontSize' || key === 'sizeRange') {
+      result[key] = value
+    } else if (Array.isArray(value)) {
+      const children = value.map(item => item !== null && typeof item === 'object'
+        ? fontSizeOption(item as Record<string, unknown>) : {})
+      // ECharts merges component arrays by index. Keep empty entries so a
+      // slider's text style cannot be applied to the preceding inside zoom.
+      if (children.some(child => Object.keys(child).length > 0)) result[key] = children
+    } else if (value !== null && typeof value === 'object') {
+      const child = fontSizeOption(value as Record<string, unknown>)
+      if (Object.keys(child).length > 0) result[key] = child
+    }
+  }
+  return result
+}
+
 export function EChartNode({ node }: { node: GenuiEChart }) {
+  const t = useT()
   const ref = useRef<HTMLDivElement | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const instanceRef = useRef<EChartsInstance | null>(null)
@@ -438,13 +485,23 @@ export function EChartNode({ node }: { node: GenuiEChart }) {
     if (status !== 'ready' || instanceRef.current === null) return
     const option = node.option ?? presetOption(node, ref.current)
     instanceRef.current.setOption(option, true)
+    if (node.option !== undefined) return
+    let contentFontSize = getComputedStyle(document.body).getPropertyValue('--dsh-content-font-size').trim()
+    const observer = new MutationObserver(() => {
+      const nextContentFontSize = getComputedStyle(document.body).getPropertyValue('--dsh-content-font-size').trim()
+      if (nextContentFontSize === contentFontSize) return
+      contentFontSize = nextContentFontSize
+      if (instanceRef.current !== null) instanceRef.current.setOption(fontSizeOption(presetOption(node, ref.current)))
+    })
+    observer.observe(document.body, { attributes: true, attributeFilter: ['style'] })
+    return () => observer.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node, status])
 
   if (status === 'error') {
     return (
       <div className={css.echartFallback} data-genui-echart>
-        <div className={css.echartErr}>ECharts render failed</div>
+        <div className={css.echartErr}>{t('echart.failed')}</div>
         {node.title !== undefined && <div className={css.echartHint}>{renderInline(node.title)}</div>}
       </div>
     )
@@ -460,7 +517,7 @@ export function EChartNode({ node }: { node: GenuiEChart }) {
         role="img"
         aria-label={node.title ?? 'ECharts chart'}
       />
-      {status === 'loading' && <div className={css.echartHint}>Loading chart…</div>}
+      {status === 'loading' && <div className={css.echartHint}>{t('echart.loading')}</div>}
     </div>
   )
 }

@@ -1,5 +1,7 @@
 import { assetUrl } from '../asset-loader.ts'
+import { bytesToBase64 } from './base64.ts'
 import { parseGenuiArtifact } from './parse.ts'
+import { collectGenuiMediaRefs, inlineStandaloneMedia, isDesktopMediaUrl } from './media.ts'
 import { analyzeGenuiPortability } from './portability.ts'
 import { GenuiExportError, type GenuiArtifactV1, type GenuiStandaloneAsset } from './types.ts'
 import { STANDALONE_THEME_CSS } from './standalone-theme.ts'
@@ -7,22 +9,12 @@ import type { GenuiSpec } from '../spec.ts'
 
 const bundleCache = new Map<string, Promise<Uint8Array>>()
 
-/** Encode binary content as Base64 that cannot close a script tag. */
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  const chunkSize = 0x8000
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
-  }
-  return btoa(binary)
-}
-
-/** Escape text used in HTML attributes and the title. */
+/** 转义 HTML 属性和标题中的文本。 */
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
 }
 
-/** Fetch and cache build artifact bytes, preserving a recognizable export error on failure. */
+/** 获取并缓存构建产物字节，失败时保留可识别的导出错误。 */
 function cachedBundle(name: string, code: GenuiStandaloneAsset | 'runtime'): Promise<Uint8Array> {
   const existing = bundleCache.get(name)
   if (existing !== undefined) return existing
@@ -38,38 +30,32 @@ function cachedBundle(name: string, code: GenuiStandaloneAsset | 'runtime'): Pro
   return task
 }
 
-/** Create a non-executable payload element holding only Base64 data. */
+/** 创建仅存放 Base64 数据的非执行 payload 节点。 */
 function bundleElement(name: string, bytes: Uint8Array): string {
   return `<script type="application/octet-stream" data-genui-bundle="${name}">${bytesToBase64(bytes)}</script>`
 }
 
-/** Convert relative media URLs to absolute URLs on the exported page's origin. */
-function resolveMediaUrls(spec: GenuiSpec, baseURI: string): GenuiSpec {
+/**
+ * 将媒体相对地址转换为导出页面所在站点的绝对地址。
+ *
+ * Walks the same writable media fields the inline step uses, so every media
+ * kind (including `compare` panels and `entity-card` portraits, which the old
+ * per-type visit skipped) resolves the same way.
+ */
+export function resolveMediaUrls(spec: GenuiSpec, baseURI: string): GenuiSpec {
   const copy = structuredClone(spec)
-  /** Walk nested nodes and containers in the spec. */
-  function visit(value: unknown): void {
-    if (Array.isArray(value)) {
-      for (const item of value) visit(item)
-      return
-    }
-    if (typeof value !== 'object' || value === null) return
-    const node = value as Record<string, unknown>
-    if (node.type === 'image' || node.type === 'audio' || node.type === 'video') {
-      for (const field of node.type === 'video' ? ['src', 'poster'] : ['src']) {
-        const media = node[field]
-        if (typeof media !== 'string' || /^https?:\/\//i.test(media)) continue
-        const url = new URL(media, baseURI)
-        if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new GenuiExportError('artifact-invalid', `media URL cannot be exported: ${media}`)
-        node[field] = url.href
-      }
-    }
-    for (const child of Object.values(node)) visit(child)
+  for (const ref of collectGenuiMediaRefs(copy)) {
+    const media = ref.src
+    if (media === '' || /^https?:\/\//i.test(media)) continue
+    const url = new URL(media, baseURI)
+    if (isDesktopMediaUrl(url) && isDesktopMediaUrl(new URL(baseURI))) continue
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new GenuiExportError('artifact-invalid', `media URL cannot be exported: ${media}`)
+    ref.set(url.href)
   }
-  visit(copy.items)
   return copy
 }
 
-/** Return the static bootstrap code that runs the embedded bundles. */
+/** 返回执行内嵌 bundle 的静态启动代码。 */
 function bootstrapSource(): string {
   return `
 async function loadBundle(element) {
@@ -90,7 +76,7 @@ async function loadBundle(element) {
   }
 }
 async function start() {
-  for (const element of document.querySelectorAll('[data-genui-bundle]')) await loadBundle(element);
+  for (const element of document.querySelectorAll('[data-genui-bundle]:not([data-genui-bundle=mermaid])')) await loadBundle(element);
   const encoded = document.querySelector('#genui-artifact').textContent.trim();
   const artifact = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encoded), character => character.charCodeAt(0))));
   window.__GenuiStandalone__.mount(document.querySelector('#genui-root'), artifact);
@@ -103,11 +89,19 @@ start().catch(error => {
 `
 }
 
-/** Build the complete standalone HTML document from the downloaded runtime files. */
+/** 序列化内联媒体表，避免文本里的 "<" 提前闭合 script 标签。 */
+function mediaPayload(media: ReadonlyMap<string, string> | undefined): string {
+  if (media === undefined || media.size === 0) return ''
+  const json = JSON.stringify(Object.fromEntries(media)).replace(/</g, '\\u003c')
+  return `<script type="application/json" id="genui-media">${json}</script>`
+}
+
+/** 使用已下载的运行文件生成完整的独立 HTML 文档。 */
 export function createStandaloneHtmlDocument(
   artifact: GenuiArtifactV1,
   bundles: ReadonlyMap<string, Uint8Array>,
   baseURI = document.baseURI,
+  media?: ReadonlyMap<string, string>,
 ): string {
   const htmlArtifact = { ...artifact, spec: resolveMediaUrls(artifact.spec, baseURI) }
   const encodedArtifact = bytesToBase64(new TextEncoder().encode(JSON.stringify(htmlArtifact)))
@@ -120,7 +114,7 @@ export function createStandaloneHtmlDocument(
   if (runtime === undefined) throw new GenuiExportError('runtime-fetch-failed', 'standalone-runtime.js: bundle unavailable')
   const csp = "default-src 'none'; script-src 'unsafe-inline' blob:; style-src 'unsafe-inline'; font-src data:; img-src 'self' data: blob: https: http:; media-src 'self' data: blob: https: http:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
   return `<!doctype html>
-<html lang="en">
+<html lang="${artifact.presentation.locale === 'zh' ? 'zh-CN' : 'en'}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -131,6 +125,7 @@ export function createStandaloneHtmlDocument(
 <body${artifact.presentation.theme === 'dark' ? ' data-ds-dark-theme' : ''}>
   <main id="genui-root"></main>
   <script type="application/octet-stream" id="genui-artifact">${encodedArtifact}</script>
+  ${mediaPayload(media)}
   ${engines}
   ${bundleElement('runtime', runtime)}
   <script>${bootstrapSource()}</script>
@@ -138,12 +133,18 @@ export function createStandaloneHtmlDocument(
 </html>`
 }
 
-/** Return the names of the graphics engines the artifact requires. */
+/** 返回 artifact 所需图形引擎名称。 */
 function artifactPortabilityAssets(artifact: GenuiArtifactV1): GenuiStandaloneAsset[] {
   return analyzeGenuiPortability(artifact.spec).requiredAssets
 }
 
-/** Fetch the standalone runtime files plus the graphics engines the spec actually uses, and build a single-file HTML. */
+/**
+ * 获取独立运行文件及规格实际使用的图形引擎，生成单文件 HTML。
+ *
+ * Same-origin images are read once and embedded as `data:` URLs so the
+ * exported page shows them without the host process, a cookie, or a network
+ * (issue #453). Anything unreadable keeps its absolute URL.
+ */
 export async function buildStandaloneHtml(rawArtifact: GenuiArtifactV1): Promise<string> {
   const artifact = parseGenuiArtifact(rawArtifact)
   if (artifact === null) throw new GenuiExportError('artifact-invalid', 'invalid GenUI artifact')
@@ -151,7 +152,10 @@ export async function buildStandaloneHtml(rawArtifact: GenuiArtifactV1): Promise
   if (report.customTypes.length > 0) {
     throw new GenuiExportError('unsupported-custom-component', `custom components: ${report.customTypes.join(', ')}`)
   }
+  const baseURI = typeof document === 'undefined' ? 'about:blank' : document.baseURI
+  const spec = baseURI === 'about:blank' ? artifact.spec : resolveMediaUrls(artifact.spec, baseURI)
+  const media = baseURI === 'about:blank' ? undefined : await inlineStandaloneMedia(spec, baseURI)
   const names = [...report.requiredAssets.map(name => `${name}.js`), 'standalone-runtime.js']
   const results = await Promise.all(names.map(async name => [name, await cachedBundle(name, name === 'standalone-runtime.js' ? 'runtime' : name.slice(0, -3) as GenuiStandaloneAsset)] as const))
-  return createStandaloneHtmlDocument(artifact, new Map(results))
+  return createStandaloneHtmlDocument({ ...artifact, spec }, new Map(results), baseURI, media)
 }

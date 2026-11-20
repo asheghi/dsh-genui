@@ -3,9 +3,8 @@
  *
  * Every string the USER reads (panel chrome, primitive labels, template
  * center, achievements, component chrome, in-page error text) resolves
- * through `t(key)` instead of being written into the component.
- * This fork ships English only: the `zh` dictionary was removed and every
- * locale resolves to the English dictionary.
+ * through `t(key)` instead of being written into the component. Two
+ * dictionaries ship: `en` and `zh`.
  *
  * Locale resolution, in priority order:
  *  1. An explicit {@link setLocale} call — the host locale bridge uses this
@@ -23,15 +22,16 @@
  * translating them would change model behaviour rather than the UI language.
  */
 import { EN } from './en.ts'
+import { ZH } from './zh.ts'
 
 /** Locale ids this package ships dictionaries for. */
-export type LocaleId = 'en'
+export type LocaleId = 'en' | 'zh'
 
 /** The locale used when nothing else resolves, and the per-key fallback. */
 export const FALLBACK_LOCALE: LocaleId = 'en'
 
 /** Locale ids in display order. */
-export const LOCALE_IDS: readonly LocaleId[] = ['en']
+export const LOCALE_IDS: readonly LocaleId[] = ['en', 'zh']
 
 /** A flat dictionary: key → template string with `{name}` placeholders. */
 export type LocaleDict = Record<string, string>
@@ -39,7 +39,7 @@ export type LocaleDict = Record<string, string>
 /** Key domain of the shipped dictionaries (English is the complete set). */
 export type GenuiTextKey = keyof typeof EN
 
-const DICTS: Record<LocaleId, LocaleDict> = { en: EN }
+const DICTS: Record<LocaleId, LocaleDict> = { en: EN, zh: ZH }
 
 /** Narrow an arbitrary BCP 47-ish tag onto a shipped locale, or undefined. */
 export function normalizeLocale(tag: string | undefined | null): LocaleId | undefined {

@@ -9,24 +9,24 @@ afterEach(() => {
   cleanup()
   document.body.removeAttribute('data-ds-dark-theme')
   localStorage.clear()
-  setLocale('en')
+  setLocale('zh')
 })
 
 describe('standalone runtime', () => {
   it('shows one JSON body with a separate copy control', () => {
     const view = render(<JsonTree data={{ answer: 42 }} copyable />)
     expect(view.container.querySelectorAll('pre')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '复制' })).toBeTruthy()
   })
 
   it('keeps CodeBlock copy feedback unchanged when clipboard APIs are unavailable', async () => {
     const view = render(<CodeBlock code="copy me" />)
-    const button = screen.getByRole('button', { name: 'Copy' })
+    const button = screen.getByRole('button', { name: '复制' })
 
     fireEvent.click(button)
     await act(async () => { await Promise.resolve() })
 
-    expect(button.textContent).toBe('Copy')
+    expect(button.textContent).toBe('复制')
     expect(view.container.querySelector('textarea')).toBeNull()
   })
 
@@ -65,7 +65,7 @@ describe('standalone runtime', () => {
     expect(screen.getByText('Expanded locally')).toBeTruthy()
     fireEvent.click(screen.getByRole('radio', { name: 'A' }))
     fireEvent.click(screen.getByRole('button', { name: 'Grade' }))
-    expect(screen.getByText(/Score/)).toBeTruthy()
+    expect(screen.getByText(/得分/)).toBeTruthy()
     act(() => unmount())
   })
 })

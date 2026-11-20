@@ -30,25 +30,25 @@ export function assertSafeSvg(svg: string): void {
  *   ```dsh-ui style fences, which break the parser with "Lexical error");
  * - strip `<br/>` tags, which require htmlLabels (never enabled here);
  * - quote unquoted node labels containing CJK, spaces, or other characters
- *   mermaid's bare-label grammar rejects (observed live: `A[\u6a21\u578b\u751f\u6210 spec]`).
+ *   mermaid's bare-label grammar rejects (observed live: `A[模型生成 spec]`).
  * Conservative by design: already-quoted labels, plain ASCII labels without
  * spaces, and non-flowchart kinds are left untouched (apart from the
  * backtick/`<br/>` sanitation above, which is harmless everywhere in a
  * flowchart).
  *
- * Labeled-edge spans (`-- \u6587\u672c -->`, `== \u6587\u672c ==>`, `-. \u6587\u672c .->`) are free
+ * Labeled-edge spans (`-- 文本 -->`, `== 文本 ==>`, `-. 文本 .->`) are free
  * text and must never be quoted: wrapping them breaks the parser
  * ("Expecting 'LINK' … got 'STR'"), observed live with
- * `H -- \u5426(\u6d41\u5f0f\u4e2d) --> J`. Each span is swapped for a bracket-free
+ * `H -- 否(流式中) --> J`. Each span is swapped for a bracket-free
  * placeholder before quoting and restored verbatim afterwards, so the quote
  * pass can neither corrupt it nor be thrown off by inserted quotes
  * elsewhere on the line.
  *
- * Pipe-style edge labels (`-->|\u6587\u672c|`) are the opposite: an UNQUOTED pipe
- * label containing `[` or `]` breaks the parser ("Parse error", observed
- * live with `-->|6. \u7528\u6237\u4ea4\u4e92 \u2192 [genui-action]|`) because the brackets are
+ * Pipe-style edge labels (`-->|文本|`) are the opposite: an UNQUOTED pipe
+ * label containing `@`, `[` or `]` breaks the parser ("Parse error", observed
+ * live with `-->|6. 用户交互 → [genui-action]|`) because the brackets are
  * node grammar. Quoting the label text is display-neutral (mermaid renders
- * `-->|"\u6587\u672c"|` without the quotes) and parses. These spans are masked too,
+ * `-->|"文本"|` without the quotes) and parses. These spans are masked too,
  * so the node-label quote pass below cannot reach inside them and produce
  * nested quotes, and restored last.
  */
@@ -63,22 +63,60 @@ export function repairMermaidSource(code: string): string {
   const EDGE = /(--|==|-\.)(?!>)[ \t]*([^-\n]|-(?!--))*?[ \t]*(-->|==>|\.->)/g
   const spans: string[] = []
   const masked = cleaned.replace(EDGE, (span) => {
+    // Extra-length arrows are operator-only links, not free-text labels.
+    if (/^[-=.<>]+$/.test(span)) return span
     spans.push(span)
     return `\uE000${spans.length - 1}\uE001`
   })
-  // Pipe label spans whose text carries at least one bracket char. The
-  // bracket requirement keeps legitimate pipe characters inside node labels
-  // (e.g. `A[a | b | c]`) untouched. Already-quoted labels (any `"` in the
-  // text) are left alone. The placeholder must be bracket-free so the
-  // node-label quote pass below cannot match inside it.
-  const PIPE = /\|([^|\n]*[\[\]][^|\n]*)\|/g
+  // Only a link outside node shapes, quoted text and comments can introduce
+  // a pipe edge label. Mask every such label before the node-quoting pass,
+  // including already-quoted labels and labels containing parentheses.
+  const PIPE_LINK = /(?:<|[ox])?(?:-{2,}[>ox]?|={2,}[>ox]?|-\.+-[>ox]?)[ \t]*\|/y
   const pipeSpans: string[] = []
-  const maskedPipes = masked.replace(PIPE, (whole, text: string) => {
+  const closers: string[] = []
+  let inQuote = false
+  let copied = 0
+  let maskedPipes = ''
+  for (let i = 0; i < masked.length; i++) {
+    const ch = masked[i]!
+    if (inQuote) {
+      if (ch === '\\') i++
+      else if (ch === '"') inQuote = false
+      continue
+    }
+    if (ch === '"') { inQuote = true; continue }
+    if (ch === '%' && masked[i + 1] === '%') {
+      const end = masked.indexOf('\n', i)
+      if (end === -1) break
+      i = end
+      continue
+    }
+    if ('[({'.includes(ch)) { closers.push(ch === '[' ? ']' : ch === '(' ? ')' : '}'); continue }
+    if (ch === closers[closers.length - 1]) { closers.pop(); continue }
+    if (closers.length > 0 || !'<ox-='.includes(ch)) continue
+    // Do not retry suffixes of a long operator run when no pipe follows it.
+    if (i > 0 && '-=.'.includes(masked[i - 1]!)) continue
+    PIPE_LINK.lastIndex = i
+    const link = PIPE_LINK.exec(masked)
+    if (link === null) continue
+    const start = PIPE_LINK.lastIndex
+    let end = start
+    let labelQuote = false
+    for (; end < masked.length && masked[end] !== '\n'; end++) {
+      if (masked[end] === '\\' && labelQuote) { end++; continue }
+      if (masked[end] === '"') labelQuote = !labelQuote
+      if (masked[end] === '|' && !labelQuote) break
+    }
+    if (masked[end] !== '|') continue
+    const text = masked.slice(start, end)
     const trimmed = text.trim()
-    if (trimmed.includes('"')) return whole
-    pipeSpans.push(trimmed)
-    return `\uE002${pipeSpans.length - 1}\uE003`
-  })
+    const label = /[@\[\]]/.test(trimmed) && !trimmed.includes('"') ? `"${trimmed}"` : text
+    pipeSpans.push(`${link[0]}${label}|`)
+    maskedPipes += masked.slice(copied, i) + `\uE002${pipeSpans.length - 1}\uE003`
+    copied = end + 1
+    i = end
+  }
+  maskedPipes += masked.slice(copied)
   const quoted = maskedPipes.replace(
     /([\[\(])([^\[\]\(\)\{\}"'\n]*)([\]\)])/g,
     (whole, open: string, label: string, close: string) => {
@@ -90,12 +128,10 @@ export function repairMermaidSource(code: string): string {
       return whole
     },
   )
+  // PIPE spans can contain an earlier EDGE placeholder: restore inside-out.
   return quoted
+    .replace(/\uE002(\d+)\uE003/g, (whole, i: string) => pipeSpans[Number(i)] ?? whole)
     .replace(/\uE000(\d+)\uE001/g, (whole, i: string) => spans[Number(i)] ?? whole)
-    .replace(/\uE002(\d+)\uE003/g, (whole, i: string) => {
-      const text = pipeSpans[Number(i)]
-      return text === undefined ? whole : `|"${text}"|`
-    })
 }
 
 /** Flowchart edge arrows. The negative lookahead on `-->(?!>)` keeps

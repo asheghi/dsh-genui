@@ -8,8 +8,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { hasFenceRegistry } from './helpers/fence-host'
-import { MarkdownText } from './markdown-labels.tsx'
+import { MarkdownText } from './genui-markdown.tsx'
 import { GenuiBlock } from '../src/client/GenuiBlock.tsx'
 import { clearBlockState, saveBlockState } from '../src/client/interaction-store.ts'
 import type { GenuiSpec } from '../src/client/spec.ts'
@@ -44,16 +43,16 @@ describe('GenUI table overflow', () => {
     clearBlockState(stateKey)
   })
 
-  it.skipIf(!hasFenceRegistry)('wraps the table in a scroll container (DOM structure)', () => {
+  it('wraps the table in a scroll container (DOM structure)', () => {
     const { container } = render(<MarkdownText text={fenced({
-      title: 'AS vs Subagent Tree comparison',
+      title: 'AS vs Subagent Tree 对比',
       items: [
         {
           type: 'table',
           columns: ['Yet Another Subagent', 'Subagent Tree'],
           rows: [
-            ['Upgrade the official subagent into a configurable build', 'Copy the source into the monorepo + git apply a patch (5 files)'],
-            ['Show live subagent tokens and tool calls', 'Running/done status only'],
+            ['把官方 subagent 升级成可配置版', '要复制源码进 monorepo + git apply 补丁（5 个文件）'],
+            ['实时显示子代理的 token 和工具调用', '只有运行/完成状态'],
           ],
         },
       ],
@@ -93,12 +92,18 @@ describe('GenUI table overflow', () => {
     expect(restingRule?.[1] ?? '').not.toMatch(/\btransition\s*:/)
   })
 
-  it('releases the reveal transform after animation', () => {
+  it('keeps reveal content visible when its entrance animation is deferred (issue #442)', () => {
     const css = readFileSync(join(process.cwd(), 'src/client/GenuiBlock.module.css'), 'utf8')
-    const match = /\.reveal\s*\{([^}]*)\}/.exec(css)
-    expect(match, 'reveal rule must exist').not.toBeNull()
-    expect(match![1]).toContain('backwards')
-    expect(match![1]).not.toContain('both')
+    const rule = /\.reveal\s*\{([^}]*)\}/.exec(css)
+    expect(rule, 'reveal rule must exist').not.toBeNull()
+    // A delayed animation must not apply an invisible backwards fill state.
+    expect(rule![1]).not.toMatch(/\bbackwards\b/)
+    const frames = /@keyframes genuiReveal\s*\{([\s\S]*?)\n\}/.exec(css)
+    expect(frames, 'genuiReveal keyframes must exist').not.toBeNull()
+    // If the WebView pauses the animation at its first frame, the component
+    // remains visible because entrance motion only changes its position.
+    expect(frames![1]).toMatch(/transform:\s*translateY\(/)
+    expect(frames![1]).not.toMatch(/opacity\s*:/)
   })
 
   it('no animation pins a transform past its end', () => {

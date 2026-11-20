@@ -10,8 +10,6 @@
 //    delivery (no more empty focus-in/focus-out round trips).
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { registerGenuiComponent } from './host-registry.ts'
-import { hasFenceRegistry } from './helpers/fence-host'
 import { GenuiActionContext } from '../src/client/action-context.ts'
 import { GenuiBlock, GENUI_ACTION_DEBOUNCE_MS } from '../src/client/GenuiBlock.tsx'
 import { repairGenuiSpec } from '../src/client/guard.ts'
@@ -32,65 +30,20 @@ function renderBlock(spec: unknown, actions: Array<[string, Record<string, unkno
   )
 }
 
-describe.skipIf(!hasFenceRegistry)('v2.8: memo comparator (streaming re-parse skips unchanged renders)', () => {
-  it('does not re-render when an equal-but-fresh spec object arrives', () => {
-    let renders = 0
-    const dispose = registerGenuiComponent('probe', ({ node }: { node: { label?: string } }) => {
-      renders += 1
-      return <div data-probe>{node.label ?? 'probe'}</div>
-    })
-    try {
-      const spec = repairGenuiSpec({
-        items: [
-          { type: 'text', content: 'static' },
-          { type: 'probe', label: 'P' },
-        ],
-      })!
-      const { rerender } = render(
-        <GenuiActionContext.Provider value={undefined}>
-          <GenuiBlock spec={spec} />
-        </GenuiActionContext.Provider>,
-      )
-      expect(renders).toBe(1)
-      // Fresh object, identical content (what a streaming chunk re-parse hands over).
-      rerender(
-        <GenuiActionContext.Provider value={undefined}>
-          <GenuiBlock spec={JSON.parse(JSON.stringify(spec))!} />
-        </GenuiActionContext.Provider>,
-      )
-      expect(renders).toBe(1)
-      // Content actually changed → the block re-renders.
-      rerender(
-        <GenuiActionContext.Provider value={undefined}>
-          <GenuiBlock spec={repairGenuiSpec({
-            items: [
-              { type: 'text', content: 'static' },
-              { type: 'probe', label: 'Q' },
-            ],
-          })!} />
-        </GenuiActionContext.Provider>,
-      )
-      expect(renders).toBe(2)
-    } finally {
-      dispose()
-    }
-  })
-})
-
 describe('v2.8: select id/selected', () => {
   it('shows a placeholder and pre-registers nothing without a default', () => {
     const { container } = renderBlock({
-      items: [{ type: 'select', label: 'Environment', options: ['dev', 'prod'] }],
+      items: [{ type: 'select', label: '环境', options: ['dev', 'prod'] }],
     })
     const select = container.querySelector('select')!
     expect(select.value).toBe('')
-    expect(select.querySelector('option[value=""][hidden]')?.textContent).toBe('Choose…')
+    expect(select.querySelector('option[value=""][hidden]')?.textContent).toBe('请选择…')
   })
 
   it('pre-selects a model default and fires an action with value + id on change', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const { container } = renderBlock({
-      items: [{ type: 'select', label: 'Environment', options: ['dev', 'prod'], selected: 1, action: 'pick', id: 'env' }],
+      items: [{ type: 'select', label: '环境', options: ['dev', 'prod'], selected: 1, action: 'pick', id: 'env' }],
     }, actions)
     const select = container.querySelector('select')!
     expect(select.value).toBe('prod')
@@ -103,8 +56,8 @@ describe('v2.8: select id/selected', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const { container } = renderBlock({
       items: [
-        { type: 'select', label: 'Environment', options: ['dev', 'prod'], action: 'pick', id: 'env' },
-        { type: 'submit', label: 'Hand in', action: 'send' },
+        { type: 'select', label: '环境', options: ['dev', 'prod'], action: 'pick', id: 'env' },
+        { type: 'submit', label: '交卷', action: 'send' },
       ],
     }, actions)
     fireEvent.change(container.querySelector('select')!, { target: { value: 'dev' } })
@@ -121,7 +74,7 @@ describe('v2.8: select id/selected', () => {
 describe('v2.8: honest link rendering', () => {
   it('renders a real anchor for a whitelisted href (target + rel)', () => {
     const { container } = renderBlock({
-      items: [{ type: 'link', label: 'Docs', href: 'https://example.com/docs' }],
+      items: [{ type: 'link', label: '文档', href: 'https://example.com/docs' }],
     })
     const a = container.querySelector('a[class*="link"]')
     expect(a).not.toBeNull()
@@ -133,7 +86,7 @@ describe('v2.8: honest link rendering', () => {
 
   it('renders plain text — never a dead button — without a href', () => {
     const { container } = renderBlock({
-      items: [{ type: 'link', label: 'Not clickable' }],
+      items: [{ type: 'link', label: '不可点链接' }],
     })
     const span = container.querySelector('span[class*="linkText"]')
     expect(span).not.toBeNull()
@@ -210,7 +163,7 @@ describe('v2.8: blur sends only on change', () => {
   it('focus-in/focus-out without an edit fires nothing', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const { container } = renderBlock({
-      items: [{ type: 'input', label: 'Name', action: 'save', id: 'name' }],
+      items: [{ type: 'input', label: '名称', action: 'save', id: 'name' }],
     }, actions)
     const input = container.querySelector('input')!
     fireEvent.focus(input)
@@ -222,13 +175,13 @@ describe('v2.8: blur sends only on change', () => {
   it('an edit delivers once on blur; a second unedited blur does not re-send', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const { container } = renderBlock({
-      items: [{ type: 'input', label: 'Name', action: 'save', id: 'name' }],
+      items: [{ type: 'input', label: '名称', action: 'save', id: 'name' }],
     }, actions)
     const input = container.querySelector('input')!
-    fireEvent.change(input, { target: { value: 'Ada' } })
+    fireEvent.change(input, { target: { value: '张三' } })
     fireEvent.blur(input)
     act(() => { vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS) })
-    expect(actions).toEqual([['save', { type: 'input', value: 'Ada', id: 'name' }]])
+    expect(actions).toEqual([['save', { type: 'input', value: '张三', id: 'name' }]])
     fireEvent.focus(input)
     fireEvent.blur(input)
     act(() => { vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS) })
@@ -238,13 +191,13 @@ describe('v2.8: blur sends only on change', () => {
   it('Enter submits with submit:true; the following blur does not double-send', () => {
     const actions: Array<[string, Record<string, unknown>]> = []
     const { container } = renderBlock({
-      items: [{ type: 'input', label: 'Name', action: 'save', id: 'name' }],
+      items: [{ type: 'input', label: '名称', action: 'save', id: 'name' }],
     }, actions)
     const input = container.querySelector('input')!
-    fireEvent.change(input, { target: { value: 'Grace' } })
+    fireEvent.change(input, { target: { value: '李四' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     act(() => { vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS) })
-    expect(actions).toEqual([['save', { type: 'input', value: 'Grace', id: 'name', submit: true }]])
+    expect(actions).toEqual([['save', { type: 'input', value: '李四', id: 'name', submit: true }]])
     fireEvent.blur(input)
     act(() => { vi.advanceTimersByTime(GENUI_ACTION_DEBOUNCE_MS) })
     expect(actions).toHaveLength(1)

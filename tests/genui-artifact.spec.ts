@@ -8,10 +8,10 @@ import type { GenuiSpec } from '../src/client/spec.ts'
 describe('GenUI artifact format', () => {
   it('normalizes, removes DSH routing fields, and round-trips durable presentation state', () => {
     const source = {
-      title: 'Sales data center', panel: true, append: true,
+      title: '销售数据中心', panel: true, append: true,
       items: [{ type: 'input', id: 'keyword', value: 'phone' }],
     } as GenuiSpec
-    const artifact = createGenuiArtifact(source, { fields: { keyword: 'iPhone' }, locked: false }, { locale: 'en', theme: 'dark' })
+    const artifact = createGenuiArtifact(source, { fields: { keyword: 'iPhone' }, locked: false }, { locale: 'zh', theme: 'dark' })
     expect(artifact.spec).not.toHaveProperty('panel')
     expect(artifact.spec).not.toHaveProperty('append')
     expect(parseGenuiArtifact(JSON.parse(serializeGenuiArtifact(artifact)))).toEqual(artifact)
@@ -40,10 +40,10 @@ describe('GenUI artifact format', () => {
     for (const id of ['row', 'col', 'grid', 'card', 'list', 'tab', 'accordion', 'table']) expect(serialized).not.toContain(`SECRET_${id}`)
   })
 
-  it('retains opaque custom node data and model actions in JSON', () => {
-    const artifact = createGenuiArtifact({ items: [{ type: 'weather', temp: 20 }, { type: 'button', label: 'Refresh', action: 'refresh' }] } as unknown as GenuiSpec)
-    expect(artifact.spec.items[0]).toMatchObject({ type: 'weather', temp: 20 })
-    expect(artifact.spec.items[1]).toMatchObject({ action: 'refresh' })
+  it('rejects unsupported component data while retaining supported model actions in JSON', () => {
+    expect(() => createGenuiArtifact({ items: [{ type: 'weather', temp: 20 }] } as unknown as GenuiSpec)).toThrow('invalid GenUI spec')
+    const artifact = createGenuiArtifact({ items: [{ type: 'button', label: 'Refresh', action: 'refresh' }] })
+    expect(artifact.spec.items[0]).toMatchObject({ action: 'refresh' })
   })
 
   it('rejects invalid envelope values and sanitizes download names', () => {

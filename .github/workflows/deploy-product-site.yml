@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths:
+      - "src/**"
+      - "scripts/build-anthology-page.mts"
       - "site/**"
       - ".github/workflows/deploy-product-site.yml"
   workflow_dispatch:
@@ -26,6 +28,23 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # 选集页（site/anthology.html）在 CI 里从 gallerySpec 现场生成：
+      # 8MB+ 的自包含产物不进 git，线上永远跟随 main 的渲染器与选集内容。
+      - name: Build renderer bundle
+        run: pnpm build
+      # 产品站：先校验 84 份 dsh-ui 规格，再把渲染器与所需引擎 vendored 进 site/assets/genui
+      - name: Build product site
+        run: npx tsx site/scripts/build-site.mjs
+      - name: Generate anthology page
+        run: npx tsx scripts/build-anthology-page.mts
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static site

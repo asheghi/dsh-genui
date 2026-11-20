@@ -17,18 +17,18 @@ import { countDeclaredGenuiNodes, isRenderableProcess, processGenuiSpec, repairG
 const statGroupFence = {
   gap: 12,
   items: [
-    { items: [{ label: 'Quality gate progress', value: '1/5 in progress' }, { label: 'Blockers', value: '0' }], type: 'stat' },
-    { content: 'Body', title: 'Progress notes', tone: 'info', type: 'callout' },
+    { items: [{ label: '质量门进度', value: '1/5 施工中' }, { label: '阻塞项', value: '0' }], type: 'stat' },
+    { content: '内容', title: '进度说明', tone: 'info', type: 'callout' },
   ],
-  title: 'Progress snapshot',
+  title: '进度快照',
 }
 
 /** Case B from the issue: a bare steps root whose data field is `items`. */
 const bareStepsFence = {
   items: [
-    { title: 'Layer one', desc: 'a' }, { title: 'Layer two', desc: 'b' }, { title: 'Layer three', desc: 'c' },
+    { title: '第一层', desc: 'a' }, { title: '第二层', desc: 'b' }, { title: '第三层', desc: 'c' },
   ],
-  title: 'Fix strategy',
+  title: '修复策略',
   type: 'steps',
 }
 
@@ -38,7 +38,7 @@ describe('issue #172 case A: stat groups normalize into a row of stats', () => {
     expect(processed.errors).toEqual([])
     expect(isRenderableProcess(processed)).toBe(true)
     expect(processed.spec?.items.map(node => node.type)).toEqual(['row', 'callout'])
-    expect(processed.spec?.title).toBe('Progress snapshot')
+    expect(processed.spec?.title).toBe('进度快照')
     expect(processed.spec?.gap).toBe(12)
   })
 
@@ -46,8 +46,8 @@ describe('issue #172 case A: stat groups normalize into a row of stats', () => {
     const processed = processGenuiSpec(statGroupFence)
     const row = processed.spec?.items[0] as { items: Array<Record<string, unknown>> }
     expect(row.items.map(metric => [metric.label, metric.value])).toEqual([
-      ['Quality gate progress', '1/5 in progress'],
-      ['Blockers', '0'],
+      ['质量门进度', '1/5 施工中'],
+      ['阻塞项', '0'],
     ])
   })
 
@@ -102,7 +102,7 @@ describe('issue #172 case B: bare data-component roots', () => {
     // alias is applied by the guard pipeline, not by the parser.
     expect((spec?.items[0] as { items: unknown[] }).items).toHaveLength(3)
     // The model's root `title` is a block title, not a steps field.
-    expect(spec?.title).toBe('Fix strategy')
+    expect(spec?.title).toBe('修复策略')
     expect((spec?.items[0] as { title?: unknown }).title).toBeUndefined()
   })
 
@@ -112,7 +112,7 @@ describe('issue #172 case B: bare data-component roots', () => {
     expect(isRenderableProcess(processed)).toBe(true)
     const steps = processed.spec?.items[0] as { type: string; steps: Array<{ title: string }> }
     expect(steps.type).toBe('steps')
-    expect(steps.steps.map(step => step.title)).toEqual(['Layer one', 'Layer two', 'Layer three'])
+    expect(steps.steps.map(step => step.title)).toEqual(['第一层', '第二层', '第三层'])
   })
 
   it('counts the bare root as one declared node (no phantom drop)', () => {
@@ -151,7 +151,7 @@ describe('issue #172 case B: bare data-component roots', () => {
     expect(processed.spec?.items.some(node => node.type === 'col')).toBe(false)
   })
 
-  it('still reads an envelope root with a stray non-native type as a spec', () => {
+  it('still reads the explicit genui envelope marker as a spec', () => {
     const processed = processGenuiSpec({ type: 'genui', items: [{ type: 'text', content: 'x' }] })
     expect(processed.errors).toEqual([])
     expect(processed.spec?.items[0]?.type).toBe('text')
@@ -179,7 +179,8 @@ describe('isComponentRoot: root-shape discrimination', () => {
     expect(isComponentRoot({ type: '', items: [] })).toBe(false)
     expect(isComponentRoot('nope')).toBe(false)
     expect(isComponentRoot(null)).toBe(false)
-    expect(isComponentRoot({ type: 'widget', items: [{ label: 'a' }] })).toBe(false)
+    expect(isComponentRoot({ type: 'widget', items: [{ label: 'a' }] })).toBe(true)
+    expect(isComponentRoot({ type: 'stack', children: [], items: [] })).toBe(false)
   })
 
   it('isGenuiSpec answers false for a bare component root', () => {

@@ -1,18 +1,18 @@
 /**
- * Parse standalone HTML into a jsdom document for structural assertions.
+ * 将 standalone HTML 解析为 jsdom 文档，供结构化断言使用。
  *
- * @param html - standalone HTML text
- * @returns the parsed HTML document
+ * @param html - standalone HTML 文本
+ * @returns 已解析的 HTML 文档
  */
 export function parseHtml(html: string): Document {
   return new DOMParser().parseFromString(html, 'text/html')
 }
 
 /**
- * Restore Base64 text to a UTF-8 string.
+ * 将 Base64 文本恢复为 UTF-8 字符串。
  *
- * @param encoded - Base64-encoded content
- * @returns the decoded UTF-8 text
+ * @param encoded - Base64 编码内容
+ * @returns 解码后的 UTF-8 文本
  */
 export function decodeBase64Text(encoded: string): string {
   const bytes = Uint8Array.from(
@@ -24,10 +24,10 @@ export function decodeBase64Text(encoded: string): string {
 }
 
 /**
- * Read the GenUI artifact exported into the HTML.
+ * 读取 HTML 中导出的 GenUI artifact。
  *
- * @param doc - standalone HTML document
- * @returns the parsed artifact data
+ * @param doc - standalone HTML 文档
+ * @returns 解析后的 artifact 数据
  */
 export function artifactFromDocument(doc: Document): unknown {
   const elements = doc.querySelectorAll('#genui-artifact')
@@ -42,10 +42,10 @@ export function artifactFromDocument(doc: Document): unknown {
 }
 
 /**
- * Return the bundle names embedded in the HTML, in document order.
+ * 按文档顺序返回 HTML 中嵌入的 bundle 名称。
  *
- * @param doc - standalone HTML document
- * @returns the bundle names
+ * @param doc - standalone HTML 文档
+ * @returns bundle 名称列表
  */
 export function bundleNames(doc: Document): string[] {
   const names = Array.from(
@@ -62,11 +62,11 @@ export function bundleNames(doc: Document): string[] {
 }
 
 /**
- * Decode the contents of the named bundle.
+ * 解码指定名称的 bundle 内容。
  *
- * @param doc - standalone HTML document
- * @param name - bundle name
- * @returns the decoded bundle text
+ * @param doc - standalone HTML 文档
+ * @param name - bundle 名称
+ * @returns 解码后的 bundle 文本
  */
 export function bundleText(doc: Document, name: string): string {
   const elements = Array.from(
@@ -83,10 +83,10 @@ export function bundleText(doc: Document, name: string): string {
 }
 
 /**
- * Parse the CSP meta content into a directive -> value-list map.
+ * 将 CSP meta 内容解析为 directive 到值列表的映射。
  *
- * @param doc - standalone HTML document
- * @returns the CSP directive map
+ * @param doc - standalone HTML 文档
+ * @returns CSP directive 映射
  */
 export function cspFromDocument(
   doc: Document,
@@ -112,12 +112,11 @@ export function cspFromDocument(
 }
 
 /**
- * Read the token declarations of one selector from standalone theme text,
- * keeping the last declared value.
+ * 从 standalone theme 文本读取指定 selector 的 token 声明，保留最后一次声明的值。
  *
- * @param css - CSS text to inspect
- * @param selector - target selector
- * @returns token name -> value map
+ * @param css - 待检查的 CSS 文本
+ * @param selector - 目标 selector
+ * @returns token 名称到值的映射
  */
 export function parseCssVariables(
   css: string,
@@ -143,11 +142,11 @@ export function parseCssVariables(
 }
 
 /**
- * Pick the theme tokens under test and report immediately when one is missing.
+ * 选择需要检查的 theme token，并在缺少 token 时立即报告。
  *
- * @param declarations - token declarations from the selector
- * @param keys - token names to check
- * @returns the values of the requested tokens
+ * @param declarations - selector 中的 token 声明
+ * @param keys - 需要检查的 token 名称
+ * @returns 指定 token 的值
  */
 export function pickTokens(declarations: Record<string, string>, keys: string[]): Record<string, string> {
   for (const key of keys) {

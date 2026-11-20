@@ -6,7 +6,7 @@ export const GENUI_ARTIFACT_FORMAT = 'dsh-genui'
 export const GENUI_ARTIFACT_VERSION = 1 as const
 
 export type GenuiArtifactTheme = 'light' | 'dark'
-export type GenuiStandaloneAsset = 'mermaid' | 'three' | 'echarts-core' | 'echarts-full'
+export type GenuiStandaloneAsset = 'mermaid' | 'three' | 'echarts-core' | 'echarts-full' | 'icons' | 'maplibre'
 
 export interface GenuiArtifactV1 {
   format: typeof GENUI_ARTIFACT_FORMAT
@@ -30,7 +30,7 @@ export type GenuiExportErrorCode =
   | 'artifact-invalid'
   | 'download-failed'
 
-/** Used when the export flow hits an error the UI can recognize. */
+/** 导出流程遇到可供界面识别的错误时使用。 */
 export class GenuiExportError extends Error {
   constructor(readonly code: GenuiExportErrorCode, message: string) {
     super(message)

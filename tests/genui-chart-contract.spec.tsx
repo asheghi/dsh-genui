@@ -15,8 +15,8 @@ describe('native chart renderability contract', () => {
         type: 'chart',
         data: [],
         series: [
-          { label: 'This month', data: [{ label: 'Q1', value: 3 }, { label: 'Q2', value: 5 }] },
-          { label: 'Last month', data: [{ label: 'Q1', value: 2 }, { label: 'Q2', value: 4 }] },
+          { label: '本月', data: [{ label: 'Q1', value: 3 }, { label: 'Q2', value: 5 }] },
+          { label: '上月', data: [{ label: 'Q1', value: 2 }, { label: 'Q2', value: 4 }] },
         ],
       }],
     })
@@ -35,8 +35,8 @@ describe('native chart renderability contract', () => {
         type: 'chart',
         kind: 'line',
         series: [
-          { label: 'This month', data: [{ label: 'Monday', value: 128 }] },
-          { label: 'Last month', data: [{ label: 'Monday', value: 96 }] },
+          { label: '本月', data: [{ label: '周一', value: 128 }] },
+          { label: '上月', data: [{ label: '周一', value: 96 }] },
         ],
       }],
     })
@@ -75,7 +75,7 @@ describe('native chart renderability contract', () => {
       items: [{
         type: 'chart',
         kind: 'bars',
-        series: [{ label: 'A', data: [{ label: 'Monday', value: 128 }] }],
+        series: [{ label: 'A', data: [{ label: '周一', value: 128 }] }],
       }],
     }))
     expect(spec).not.toBeNull()
@@ -83,11 +83,11 @@ describe('native chart renderability contract', () => {
   })
 
   it('rejects a card whose children field is missing instead of rendering an empty shell', () => {
-    const raw = JSON.stringify({ items: [{ type: 'card', title: 'Empty card' }] })
+    const raw = JSON.stringify({ items: [{ type: 'card', title: '空卡片' }] })
     expect(resolveGenuiSpec(raw)).toBeNull()
 
     render(<div>{renderGenuiFence(raw, 'card-missing-items')}</div>)
-    expect(screen.getByRole('alert').textContent).toContain('GenUI field validation failed')
+    expect(screen.getByRole('alert').textContent).toContain('GenUI 字段验证失败')
     expect(screen.getByRole('alert').textContent).toContain('requires items')
   })
 
@@ -96,7 +96,7 @@ describe('native chart renderability contract', () => {
       items: [{
         type: 'chart',
         kind: 'line',
-        data: [{ label: 'Monday', value: 128, extension: true }],
+        data: [{ label: '周一', value: 128, extension: true }],
         extension: { owner: 'another-plugin' },
       }],
     })) as { items: Array<Record<string, unknown> & { data?: Array<Record<string, unknown>> }> } | null
@@ -108,12 +108,12 @@ describe('native chart renderability contract', () => {
 
   it('keeps validate, render metadata, and fence resolution on one canonical tree', async () => {
     const input = {
-      title: 'Protocol aliases',
+      title: '协议别名',
       items: [
-        { type: 'card', label: 'Card', content: [{ type: 'text', text: 'Body' }] },
-        { type: 'table', headers: ['Name'], data: [['Apple']] },
-        { type: 'callout', kind: 'warning', content: 'Note' },
-        { type: 'steps', items: [{ title: 'First step' }] },
+        { type: 'card', label: '卡片', content: [{ type: 'text', text: '内容' }] },
+        { type: 'table', headers: ['名称'], data: [['苹果']] },
+        { type: 'callout', kind: 'warning', content: '注意' },
+        { type: 'steps', items: [{ title: '第一步' }] },
       ],
     }
     const validation = String(await createValidateDshUiTool().execute({ spec: JSON.stringify(input) }))
@@ -126,23 +126,24 @@ describe('native chart renderability contract', () => {
     const renderTool = createRenderUiTool()
     const meta = renderTool.output.presentationMeta!({ spec: input })
     const resolved = resolveGenuiSpec(JSON.stringify(input))
-    expect(meta).toEqual(resolved)
+    const { 'dsh-go/view': nativeView, ...webSpec } = meta as Record<string, unknown>
+    expect(webSpec).toEqual(resolved)
+    expect(nativeView).toMatchObject({ type: 'stack', title: '协议别名' })
     expect(meta).toMatchObject({
-      title: 'Protocol aliases',
+      title: '协议别名',
       items: [
-        { type: 'card', title: 'Card', items: [{ type: 'text', content: 'Body' }] },
-        { type: 'table', columns: ['Name'], rows: [['Apple']] },
-        { type: 'callout', tone: 'warning', content: 'Note' },
-        { type: 'steps', steps: [{ title: 'First step' }] },
+        { type: 'card', title: '卡片', items: [{ type: 'text', content: '内容' }] },
+        { type: 'table', columns: ['名称'], rows: [['苹果']] },
+        { type: 'callout', tone: 'warning', content: '注意' },
+        { type: 'steps', steps: [{ title: '第一步' }] },
       ],
     })
   })
 
-  it('warns for native extension fields while preserving custom renderer payloads', async () => {
+  it('warns for native extension fields and blocks unsupported component payloads', async () => {
     const input = {
       items: [
-        { type: 'callout', content: 'Kept', extension: true },
-        { type: 'custom-widget', extension: { owner: 'plugin' } },
+        { type: 'callout', content: '保留', extension: true },
       ],
     }
     const validation = String(await createValidateDshUiTool().execute({ spec: JSON.stringify(input) }))
@@ -155,7 +156,9 @@ describe('native chart renderability contract', () => {
       items: Array<Record<string, unknown>>
     }
     expect(meta.items[0]).not.toHaveProperty('extension')
-    expect(meta.items[1]).toEqual(input.items[1])
-    expect(await renderTool.execute({ spec: input })).toContain('rendered=2')
+    expect(await renderTool.execute({ spec: input })).toContain('rendered=1')
+    const unsupported = { items: [...input.items, { type: 'custom-widget', extension: { owner: 'plugin' } }] }
+    expect(renderTool.output.presentationMeta!({ spec: unsupported })).toBeNull()
+    await expect(renderTool.execute({ spec: unsupported })).rejects.toThrow("unknown type 'custom-widget'")
   })
 })

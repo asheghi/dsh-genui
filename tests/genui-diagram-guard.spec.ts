@@ -10,18 +10,21 @@ describe('repairGenuiSpec: diagram', () => {
   it('keeps a valid coordinate diagram and clamps to the 4px grid', () => {
     const spec = repairGenuiSpec({ items: [diagram({
       kind: 'architecture',
+      id: 'selectedNode',
       nodes: [
-        { id: 'n1', label: 'Web', x: 41, y: 40, w: 130, h: 48, type: 'focal', tag: 'API', sub: 'v1' },
+        { id: 'n1', label: 'Web', description: 'Handles requests'.padEnd(2100, '.'), x: 41, y: 40, w: 130, h: 48, type: 'focal', tag: 'API', sub: 'v1' },
         { id: 'n2', label: 'DB', x: 200, y: 140 },
       ],
       edges: [{ from: 'n1', to: 'n2', label: 'WRITE', kind: 'accent' }],
     })] })
-    const d = spec?.items[0] as { type: 'diagram'; nodes: Array<{ x: number; y: number; w: number; h: number }> }
+    const d = spec?.items[0] as { type: 'diagram'; id: string; nodes: Array<{ x: number; y: number; w: number; h: number; description?: string }> }
     expect(d.type).toBe('diagram')
     // 41 → 40, 130 → 132 (round to 4)
     expect(d.nodes[0].x).toBe(40)
     expect(d.nodes[0].w).toBe(132)
     expect(d.nodes[0].tag).toBe('API')
+    expect(d.id).toBe('selectedNode')
+    expect(d.nodes[0].description).toHaveLength(GENUI_LIMITS.maxString)
   })
 
   it('drops unknown kinds and nodes missing id/label', () => {
@@ -33,6 +36,16 @@ describe('repairGenuiSpec: diagram', () => {
     expect(spec?.items).toHaveLength(1)
     const d = spec?.items[0] as { nodes: unknown[] }
     expect(d.nodes).toHaveLength(0)
+  })
+
+  it('defaults a missing kind to flowchart', () => {
+    const { kind: _kind, ...noKind } = diagram({})
+    const spec = repairGenuiSpec({ items: [noKind] })
+    const d = spec?.items[0] as { kind: string; nodes: unknown[] }
+    // A fence that omits `kind` must still render: column layout needs no
+    // coordinates, and the whole node used to be dropped otherwise.
+    expect(d.kind).toBe('flowchart')
+    expect(d.nodes).toHaveLength(1)
   })
 
   it('budgets nodes and edges', () => {
@@ -68,10 +81,19 @@ describe('repairGenuiSpec: diagram', () => {
 })
 
 describe('validateGenuiSpec: diagram', () => {
-  it('reports missing kind / nodes', () => {
+  it('accepts a diagram that omits kind (repair defaults it)', () => {
+    const v = validateGenuiSpec({ items: [{ type: 'diagram', nodes: [{ id: 'a', label: 'A' }] }] })
+    expect(v.errors.join('\n')).not.toContain('requires kind')
+  })
+
+  it('reports a non-string kind', () => {
+    const v = validateGenuiSpec({ items: [{ type: 'diagram', kind: 3, nodes: [{ id: 'a', label: 'A' }] }] })
+    expect(v.errors.join('\n')).toContain('requires kind (string)')
+  })
+
+  it('reports missing nodes', () => {
     const v = validateGenuiSpec({ items: [{ type: 'diagram' }] })
     expect(v.ok).toBe(false)
-    expect(v.errors.join('\n')).toContain('requires kind')
     expect(v.errors.join('\n')).toContain('requires nodes')
   })
 

@@ -1,6 +1,5 @@
 /**
- * Resolve dsh-ui fence bodies through the pipeline shared by the browser renderer and the
- * Node-side final-reply feedback guard.
+ * 使用浏览器 renderer 与 Node 侧最终回复反馈守卫共用的流程解析 dsh-ui 围栏正文。
  * @module @changfenhuang/dsh-genui/shared/fence-resolve
  */
 
@@ -9,49 +8,58 @@ import { parsePartialGenuiSpec } from '../client/parse-partial.ts'
 import type { GenuiSpec } from '../client/spec.ts'
 import { completeFenceJson, repairFenceJson } from './fence-repair.ts'
 
-/** Options controlling whether structured JSON repair may be applied. */
+/** 控制是否允许采用结构化 JSON 修复的选项。 */
 export interface FenceResolveOptions {
-  /** Settled replies may use tier-2 completion repair. */
+  /** 回合结束后的回复允许使用 tier-2 补全修复。 */
   readonly settled: boolean
 }
 
-/** Result of running one candidate fence body through the spec guard. */
+/** 一次围栏候选正文经过规格守卫后的结果。 */
 export interface FenceResolution {
-  /** Parsed value used for this spec processing pass; null when nothing could be parsed. */
+  /** Original text that a prefix-only rendering would hide. */
+  readonly unconsumedText?: string
+  /** 参与本次规格处理的解析值；没有可解析值时为 null。 */
   readonly value: unknown | null
-  /** Diagnostics emitted by the spec guard; null when nothing could be parsed. */
+  /** 规格守卫输出的诊断；没有可解析值时为 null。 */
   readonly processed: GenuiProcessResult | null
-  /** Renderable spec; null when it cannot render. */
+  /** 可渲染的 spec；无法渲染时为 null。 */
   readonly spec: GenuiSpec | null
 }
 
 /**
- * Run the spec guard and bad-node cleanup on an already parsed value.
+ * 对已经解析的值执行规格守卫和坏节点清理。
  *
- * @param value - Parsed or partially parsed fence value.
- * @returns Spec processing result for the current candidate body.
+ * @param value - 已解析或部分解析的围栏值。
+ * @returns 当前候选正文的规格处理结果。
  */
 function resolveParsedFence(value: unknown): FenceResolution {
-  const processed = processGenuiSpec(value)
+  const processed = processGenuiSpec(value, { deferPanelReferences: true })
   return { value, processed, spec: partialRepairGenuiSpec(processed) }
 }
 
-/** Return the fence resolution for a body that has nothing parsable. */
+/** 返回没有可解析正文的围栏处理结果。 */
 function unresolvedFence(): FenceResolution {
   return { value: null, processed: null, spec: null }
 }
 
 /**
- * Resolve a raw dsh-ui body through the renderer's unified pipeline.
+ * 使用 renderer 的统一流程解析原始 dsh-ui 正文。
  *
- * Tier-1 repair is available while streaming. Tier-2 completion repair is allowed only for
- * settled replies, so an unfinished body cannot render early.
+ * 流式生成期间可以使用 tier-1 修复。tier-2 补全修复只允许用于回合结束后的回复，
+ * 防止未完成的正文提前渲染。
  *
- * @param raw - Raw body between the dsh-ui fence markers.
- * @param options - Streaming or settled resolution policy.
- * @returns Render spec that passed the spec guard; null when the body cannot render.
+ * @param raw - dsh-ui 围栏标记之间的原始正文。
+ * @param options - 流式或回合结束后的解析策略。
+ * @returns 通过规格守卫的渲染 spec；正文无法渲染时返回 null。
  */
 export function resolveFence(raw: string, options: FenceResolveOptions): FenceResolution {
+  // Partial parsing is intentionally permissive while streaming. At settle,
+  // a renderable prefix alone is not a complete delivery: the DOM channel
+  // hides the WHOLE code block. Keep it visible if repair would drop its tail.
+  const completed = options.settled ? completeFenceJson(raw) : null
+  if (completed?.unconsumedText !== undefined) {
+    return { ...unresolvedFence(), unconsumedText: completed.unconsumedText }
+  }
   const parsed = parsePartialGenuiSpec(raw)
   let resolution = parsed === null ? unresolvedFence() : resolveParsedFence(parsed)
   if (resolution.spec !== null) return resolution
@@ -63,18 +71,17 @@ export function resolveFence(raw: string, options: FenceResolveOptions): FenceRe
   }
   if (resolution.spec !== null || !options.settled) return resolution
 
-  const completed = completeFenceJson(raw)
   if (completed === null) return resolution
   const reparsed = parsePartialGenuiSpec(completed.text)
   return reparsed === null ? unresolvedFence() : resolveParsedFence(reparsed)
 }
 
 /**
- * Return only the renderable spec from the unified fence resolution pipeline.
+ * 只返回统一围栏解析流程的可渲染 spec。
  *
- * @param raw - Raw body between the dsh-ui fence markers.
- * @param options - Streaming or settled resolution policy.
- * @returns Render spec that passed the spec guard; null when the body cannot render.
+ * @param raw - dsh-ui 围栏标记之间的原始正文。
+ * @param options - 流式或回合结束后的解析策略。
+ * @returns 通过规格守卫的渲染 spec；正文无法渲染时返回 null。
  */
 export function resolveFenceSpec(raw: string, options: FenceResolveOptions): GenuiSpec | null {
   return resolveFence(raw, options).spec

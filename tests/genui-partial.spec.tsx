@@ -35,7 +35,7 @@ describe('parsePartialGenuiSpec', () => {
   })
 
   it('extracts finished components while the array is still growing', () => {
-    // element 1 is complete, element 2 is unfinished: only element 1 comes back
+    // 第 1 个元素完成，第 2 个未写完 —— 应只返回第 1 个
     const spec = parsePartialGenuiSpec('{"items":[{"type":"text","content":"A"},{"type":"stat","labe')
     expect(spec?.items).toHaveLength(1)
     expect((spec!.items[0] as { type: string }).type).toBe('text')
@@ -43,7 +43,7 @@ describe('parsePartialGenuiSpec', () => {
 
   it('does not expose a partial nested EChart option as a finished component', () => {
     const first = '{"type":"text","content":"A"}'
-    const partialEchart = '{"type":"echart","option":{"tooltip":{"trigger":"axis"},"grid":{"left":48},"xAxis":{"type":"category","data":["quality metric records"]}'
+    const partialEchart = '{"type":"echart","option":{"tooltip":{"trigger":"axis"},"grid":{"left":48},"xAxis":{"type":"category","data":["质量指标记录"]}'
     const spec = parsePartialGenuiSpec(`{"items":[${first},${partialEchart}`)
 
     expect(spec?.items).toHaveLength(1)
@@ -51,7 +51,7 @@ describe('parsePartialGenuiSpec', () => {
   })
 
   it('does not render a single partial EChart before its component closes', () => {
-    const partial = '{"items":[{"type":"echart","option":{"tooltip":{"trigger":"axis"},"grid":{"left":48},"xAxis":{"type":"category","data":["quality metric records"]}'
+    const partial = '{"items":[{"type":"echart","option":{"tooltip":{"trigger":"axis"},"grid":{"left":48},"xAxis":{"type":"category","data":["质量指标记录"]}'
     expect(parsePartialGenuiSpec(partial)).toBeNull()
   })
 
@@ -91,24 +91,24 @@ describe('parsePartialGenuiSpec', () => {
 
 describe('partial render while streaming', () => {
   it('renders finished components from an incomplete fence while streaming', () => {
-    // the fence is unclosed and component 2 is unfinished: the finished text + stat must render
-    const partial = '```dsh-ui\n{"items":[{"type":"text","content":"hello"},{"type":"stat","label":"Progress","value":"50%"},{"type":"but'
+    // 围栏没闭合、第 2 个组件没写完 —— 已完成的 text + stat 应渲染
+    const partial = '```dsh-ui\n{"items":[{"type":"text","content":"你好"},{"type":"stat","label":"进度","value":"50%"},{"type":"but'
     const { container } = render(<MarkdownText text={partial} streaming />)
-    // the finished components rendered
-    expect(container.textContent).toContain('hello')
-    expect(container.textContent).toContain('Progress')
-    // the unfinished button did not
+    // 已完成的组件渲染出来了
+    expect(container.textContent).toContain('你好')
+    expect(container.textContent).toContain('进度')
+    // 未完成的按钮不渲染
     expect(container.textContent).not.toContain('button')
   })
 
   it('grows the render as more components complete', () => {
     const head = '```dsh-ui\n{"items":[{"type":"text","content":"A"},'
     const r1 = render(<MarkdownText text={head + '{"type":"text","content":"B"}'} streaming />)
-    // both complete
+    // 两个都完成
     expect(r1.container.textContent).toContain('A')
     expect(r1.container.textContent).toContain('B')
     r1.unmount()
-    // only one complete
+    // 只有一个完成
     const r2 = render(<MarkdownText text={head} streaming />)
     expect(r2.container.textContent).toContain('A')
     expect(r2.container.textContent).not.toContain('B')
@@ -152,5 +152,40 @@ describe('bounded repair (single scan, capped attempts)', () => {
     expect(parsePartialGenuiSpec('{"items":[{"type":"text","content":"A"},{"type":"stat","labe')?.items).toHaveLength(1)
     expect(parsePartialGenuiSpec('{"items":[{"type":"text","content":"A"},')?.items).toHaveLength(1)
     expect(parsePartialGenuiSpec('{"items":[{"type":"text","content":"a {b} [c] }"},{"type":"but')?.items).toHaveLength(1)
+  })
+})
+
+describe('progressive inside a container', () => {
+  it('shows a finished child before its container closes', () => {
+    // The answer is mid-container: the col has one complete text child and the
+    // second child is still being written.
+    const raw = '{"items":[{"type":"col","items":[{"type":"text","content":"第一行"},{"type":"te'
+    const spec = parsePartialGenuiSpec(raw)
+    expect(spec).not.toBeNull()
+    const col = spec!.items[0] as { type: string; items: Array<{ type: string; content?: string }> }
+    expect(col.type).toBe('col')
+    expect(col.items).toHaveLength(1)
+    expect(col.items[0]!.content).toBe('第一行')
+  })
+
+  it('grows a card child by child instead of waiting for the closing brace', () => {
+    const one = '{"items":[{"type":"card","title":"指标","items":[{"type":"stat","label":"A","value":"1"}]'
+    expect((parsePartialGenuiSpec(one)!.items[0] as { items: unknown[] }).items).toHaveLength(1)
+
+    const two = '{"items":[{"type":"card","title":"指标","items":[{"type":"stat","label":"A","value":"1"},{"type":"stat","label":"B","value":"2"}]'
+    expect((parsePartialGenuiSpec(two)!.items[0] as { items: unknown[] }).items).toHaveLength(2)
+  })
+
+  it('shows finished table rows before the table closes', () => {
+    const raw = '{"items":[{"type":"table","columns":["a","b"],"rows":[["1","2"]'
+    const table = parsePartialGenuiSpec(raw)!.items[0] as { type: string; rows: unknown[] }
+    expect(table.type).toBe('table')
+    expect(table.rows).toHaveLength(1)
+  })
+
+  it('does not invent a child from a half-written object', () => {
+    // The second child never closed: nothing of it may appear.
+    const raw = '{"items":[{"type":"col","items":[{"type":"text","content":"完整"},{"type":"text","content":"半'
+    expect((parsePartialGenuiSpec(raw)!.items[0] as { items: unknown[] }).items).toHaveLength(1)
   })
 })

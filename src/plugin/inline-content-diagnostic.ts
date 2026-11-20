@@ -1,3 +1,4 @@
+import { GENUI_LIMITS } from '../client/genui-runtime/limits.ts'
 import type { GenuiNode, GenuiSpec } from '../client/spec.ts'
 
 export interface InlineContentWarning {
@@ -6,12 +7,12 @@ export interface InlineContentWarning {
   replacement: 'code' | 'table'
 }
 
-/** Detect run-on code fence markers inside a text field. */
+/** 识别文字字段中的连续代码围栏标记。 */
 function hasFencedCode(value: string): boolean {
   return /`{3,}|~{3,}/.test(value)
 }
 
-/** Detect a Markdown table separator line under an adjacent header row. */
+/** 判断相邻表头下方的 Markdown 表格分隔行。 */
 function isMarkdownTableSeparator(line: string): boolean {
   let value = line.trim()
   if (value.startsWith('|')) value = value.slice(1)
@@ -20,7 +21,7 @@ function isMarkdownTableSeparator(line: string): boolean {
   return cells.length >= 2 && cells.every(cell => /^:?-{2,}:?$/.test(cell))
 }
 
-/** Report only when an adjacent header row and separator line form a table. */
+/** 仅在相邻表头和分隔行构成表格时报告。 */
 function hasMarkdownTable(value: string): boolean {
   const lines = value.split(/\r?\n/)
   for (let i = 0; i + 1 < lines.length; i++) {
@@ -29,24 +30,33 @@ function hasMarkdownTable(value: string): boolean {
   return false
 }
 
-/** Inspect the canonical display fields that need block-level content diagnostics, following the component structure. */
+/** 按组件结构检查需要块级内容诊断的 canonical 显示字段。 */
 export function collectInlineContentWarnings(spec: GenuiSpec): InlineContentWarning[] {
   const warnings: InlineContentWarning[] = []
 
-  /** Record block-level Markdown in a visible text field as a stable diagnostic. */
+  /** 将一个可见文字字段中的块级 Markdown 记录为稳定诊断。 */
   function check(value: string | undefined, path: string): void {
     if (value === undefined) return
     if (hasFencedCode(value)) warnings.push({ path, kind: 'fenced_code', replacement: 'code' })
     if (hasMarkdownTable(value)) warnings.push({ path, kind: 'markdown_table', replacement: 'table' })
   }
 
-  /** Descend one level only through the child-node fields of GenUI components. */
+  /** 只沿 GenUI 组件的子节点字段访问下一层。 */
   function visit(node: GenuiNode, path: string): void {
     switch (node.type) {
       case 'text': check(node.content, `${path}.content`); break
       case 'card':
         check(node.title, `${path}.title`)
         node.items.forEach((child, i) => visit(child, `${path}.items[${i}]`))
+        break
+      case 'carousel':
+        check(node.title, `${path}.title`)
+        node.items.slice(0, GENUI_LIMITS.maxCarouselItems).forEach((child, i) => visit(child, `${path}.items[${i}]`))
+        break
+      case 'image-group':
+        check(node.title, `${path}.title`)
+        node.items.slice(0, GENUI_LIMITS.maxImageGroupItems).forEach((item, i) => check(item.caption, `${path}.items[${i}].caption`))
+        // alt and src are plain attributes, not inline Markdown surfaces.
         break
       case 'row':
       case 'col':

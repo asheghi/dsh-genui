@@ -1,3 +1,4 @@
+import { genuiMediaSrc } from '../media-overrides.ts'
 /**
  * Basic display family: avatar palette, and the local click-feedback button
  * (the actionable-button chip). Used by the render dispatcher.
@@ -31,8 +32,8 @@ export function avatarColor(name: string): string {
 }
 
 /** Button with LOCAL click feedback: clicking an actionable button shows a
- * brief "✓ Sent" chip so the user sees the click registered even while the
- * model round trip is in flight — no more "the click did nothing" perception. The chip
+ * brief "✓ 已触发" chip so the user sees the click registered even while the
+ * model round trip is in flight — no more "点了没反应" perception. The chip
  * is purely cosmetic; the action fires through `onClick` as before. */
 export function ClickFeedbackButton({ className, disabled, onClick, children }: {
   className: string
@@ -106,7 +107,7 @@ export const VideoNode = memo(function VideoNode({ node }: { node: GenuiVideo })
         : <video
             className={`${css.mediaPlayer} ${css.videoPlayer}`}
             src={node.src}
-            poster={node.poster}
+            poster={node.poster === undefined ? undefined : genuiMediaSrc(node.poster)}
             aria-label={node.alt ?? t('block.video')}
             controls
             preload="metadata"

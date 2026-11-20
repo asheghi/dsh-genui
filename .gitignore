@@ -17,3 +17,6 @@ site/assets/genui/theme.css
 site/assets/genui/artifacts.json
 site/proto/demo-artifacts.json
 site/proto/shots/
+
+# Local install-verify report (fork-local artifact)
+install-verify.txt
